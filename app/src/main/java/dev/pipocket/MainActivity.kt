@@ -41,6 +41,11 @@ class MainActivity : Activity() {
     private lateinit var talk: Button
     private lateinit var review: Button
     private lateinit var lifecycle: Button
+    private lateinit var changes: Button
+    private var changesSession = ""
+    private var changesInfo: JSONObject? = null
+    private var nextChangesCheck = 0L
+    private val checkingChanges = mutableSetOf<String>()
     private var selectedId = "pocket"
     private var renderedSession = ""
     private var renderedJobs: List<Job>? = null
@@ -86,20 +91,19 @@ class MainActivity : Activity() {
         }
         insetFrame.addView(drawer, FrameLayout.LayoutParams(-1, -1))
         val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(10))
+            orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), dp(12))
             setBackgroundColor(PocketColors.background)
         }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        header.addView(actionButton("☰", "Open chats") { hideKeyboard(); drawer.openDrawer(GravityCompat.START) }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(iconButton("menu", "Open chats") { hideKeyboard(); drawer.openDrawer(GravityCompat.START) }, LinearLayout.LayoutParams(dp(48), dp(48)))
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(4), 0) }
         titles.addView(textLabel("PI POCKET", 10f, true).apply { letterSpacing = 0.16f })
         title = textLabel("", 20f).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END; setTypeface(typeface, Typeface.BOLD) }
         titles.addView(title); header.addView(titles, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(actionButton("Δ", "Review changes") { openChanges() }, LinearLayout.LayoutParams(dp(44), dp(48)))
-        header.addView(actionButton("＋", "New chat") { newChat() }, LinearLayout.LayoutParams(dp(48), dp(48)))
-        val more = actionButton("⋮", "Chat menu") {}
+        header.addView(iconButton("add", "New chat") { newChat() }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        val more = iconButton("more", "Chat menu") {}
         more.setOnClickListener { showMenu(more) }
-        header.addView(more, LinearLayout.LayoutParams(dp(44), dp(48)).apply { leftMargin = dp(6) })
+        header.addView(more, LinearLayout.LayoutParams(dp(48), dp(48)))
         root.addView(header)
         subtitle = textLabel("", 12f, true); root.addView(subtitle)
         status = textLabel("", 13f, true).apply { maxLines = 3 }; root.addView(status)
@@ -108,11 +112,14 @@ class MainActivity : Activity() {
                 if (session.archived) archiveSession(session, false) else finishSession(session, !session.finished)
             }
         }
-        root.addView(lifecycle, LinearLayout.LayoutParams(-1, dp(48)))
+        lifecycle.apply { background = null; gravity = Gravity.END; setPadding(0, dp(8), 0, dp(8)); textSize = 13f }
+        root.addView(lifecycle, LinearLayout.LayoutParams(-1, -2))
+        changes = actionButton("Review changes", "Review changes") { openChanges() }.apply { visibility = View.GONE }
+        root.addView(changes, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(8) })
         review = actionButton("Review approval") {
             selectedJob()?.let { job -> deferredApprovals.remove(approvalKey(job)); showApproval(job) }
         }
-        root.addView(review, LinearLayout.LayoutParams(-1, dp(48)))
+        root.addView(review, LinearLayout.LayoutParams(-1, -2))
         messages = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll = ScrollView(this).apply { addView(messages); isFillViewport = true; clipToPadding = false }
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -137,16 +144,16 @@ class MainActivity : Activity() {
         composer.addView(draft)
         val actions = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         talk = actionButton("Talk") { speak() }
-        actions.addView(talk, LinearLayout.LayoutParams(0, dp(48), 1f))
+        actions.addView(talk, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(8) })
         stop = actionButton("Stop", "Stop this chat") {
             val job = selectedJob() ?: return@actionButton
             network(job.id) { connection.request("/v1/jobs/${job.id}/cancel", JSONObject()) }
         }
-        actions.addView(stop, LinearLayout.LayoutParams(0, dp(48), 1f).apply { leftMargin = dp(8); rightMargin = dp(8) })
+        actions.addView(stop, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(8) })
         send = actionButton("Send") { submit() }.apply {
             background = rounded(PocketColors.accent, dp(14).toFloat()); setTextColor(PocketColors.background)
         }
-        actions.addView(send, LinearLayout.LayoutParams(0, dp(48), 1f)); composer.addView(actions)
+        actions.addView(send, LinearLayout.LayoutParams(0, -2, 1f)); composer.addView(actions)
         root.addView(composer, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         root.addView(textLabel("Review before sending. Pi can change files and operate your phone.", 11f, true))
         drawer.addView(root, DrawerLayout.LayoutParams(-1, -1))
@@ -161,7 +168,7 @@ class MainActivity : Activity() {
         render()
     }
 
-    override fun onStart() { super.onStart(); visible = true; render(); handler.post(poll) }
+    override fun onStart() { super.onStart(); visible = true; changesInfo = null; nextChangesCheck = 0; render(); handler.post(poll) }
     override fun onStop() { saveDraft(); visible = false; handler.removeCallbacks(poll); super.onStop() }
     override fun onDestroy() { approvalDialog?.dismiss(); worker.shutdown(); super.onDestroy() }
     override fun onSaveInstanceState(outState: Bundle) { saveDraft(); outState.putString("speechSession", speechSessionId); super.onSaveInstanceState(outState) }
@@ -189,14 +196,15 @@ class MainActivity : Activity() {
         if (id != selectedId) {
             saveDraft(); approvalDialog?.dismiss(); approvalDialog = null
             selectedId = id
+            changesInfo = null; changesSession = ""; nextChangesCheck = 0
             getSharedPreferences("chat-ui", MODE_PRIVATE).edit().putString("selected", id).commit()
             bindingDraft = true; draft.setText(history.session(id)?.draft.orEmpty()); draft.setSelection(draft.length()); bindingDraft = false
         }
-        hideKeyboard(); drawer.closeDrawer(GravityCompat.START); render()
+        hideKeyboard(); drawer.closeDrawer(GravityCompat.START); render(); refreshChanges(force = true)
     }
     private fun showMenu(anchor: View) {
         val session = history.session(selectedId) ?: return
-        navigation.menu(anchor, session, includeSettings = true, changes = { openChanges() }) { showWorkspace(session) }
+        navigation.menu(anchor, session, includeSettings = true, changes = if (reviewAvailable()) ({ openChanges() }) else null) { showWorkspace(session) }
     }
     private fun openChanges() {
         saveDraft(); hideKeyboard()
@@ -225,7 +233,7 @@ class MainActivity : Activity() {
     private fun renameSession(session: ChatSession) {
         modalOpen = true
         val input = EditText(this).apply { setText(session.title); isSingleLine = true; selectAll() }
-        val dialog = AlertDialog.Builder(this).setTitle("Rename chat").setView(input)
+        val dialog = AlertDialog.Builder(this).setTitle("Rename chat").setView(dialogField(input))
             .setPositiveButton("Save", null).setNegativeButton("Cancel", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
@@ -243,6 +251,9 @@ class MainActivity : Activity() {
         val jobs = history.jobs(selectedId)
         val current = jobs.firstOrNull { it.active }
         title.text = session.title
+        changes.visibility = if (reviewAvailable()) View.VISIBLE else View.GONE
+        val changedCount = reviewFileCount(changesInfo)
+        changes.text = if (changedCount > 0) "Review $changedCount changed ${if (changedCount == 1) "file" else "files"}" else "View repository action"
         val others = sessions.count { it.active && it.id != selectedId }
         lifecycle.visibility = if (session.archived || (current == null && session.status != null)) View.VISIBLE else View.GONE
         lifecycle.text = when { session.archived -> "Restore chat"; session.finished -> "✓ Finished · Reopen chat"; else -> "Mark finished" }
@@ -250,9 +261,10 @@ class MainActivity : Activity() {
         draft.isEnabled = !session.archived
         talk.isEnabled = !session.archived
         talk.alpha = if (talk.isEnabled) 1f else 0.35f
-        subtitle.text = if (others > 0) "$others other chats active · own Git worktrees" else "Own Git worktree · shared phone"
+        subtitle.text = if (others > 0) "$others other chats active · own Git worktrees" else "A space for your next idea"
         send.text = if (connection.paired) "Send" else "Pair bridge"
         send.isEnabled = !session.archived && (!connection.paired || current == null)
+        stop.visibility = if (current != null) View.VISIBLE else View.GONE
         stop.isEnabled = connection.paired && current != null && current.status != "sending"
         send.alpha = if (send.isEnabled) 1f else 0.4f; stop.alpha = if (stop.isEnabled) 1f else 0.35f
         status.text = when {
@@ -262,7 +274,7 @@ class MainActivity : Activity() {
             current?.pending?.isNotEmpty() == true -> "This chat needs your approval. Other chats can keep running."
             current != null -> current.progress.ifBlank { if (current.status == "sending") "Connecting to your Termux bridge…" else "Pi is working in this chat…" }
             jobs.lastOrNull()?.status == "failed" -> "Request failed. Inspect the result below before retrying."
-            else -> "Ready · your Termux bridge must stay running"
+            else -> "Ready when you are"
         }
         review.visibility = if (current?.pending?.isNotEmpty() == true) View.VISIBLE else View.GONE
         if (renderedSession != selectedId || renderedJobs != jobs || renderedPaired != connection.paired) {
@@ -294,8 +306,31 @@ class MainActivity : Activity() {
         maybeShowApproval()
     }
 
+    private fun reviewAvailable() = connection.paired && hasReviewChanges(
+        if (changesSession == selectedId) changesInfo else null,
+        getSharedPreferences("review-requests", MODE_PRIVATE).contains("pending-$selectedId"))
+
+    private fun refreshChanges(force: Boolean = false) {
+        if (!visible || !connection.paired || history.jobs(selectedId).isEmpty()) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!force && now < nextChangesCheck) return
+        val id = selectedId; val endpoint = connection.endpoint
+        if (!checkingChanges.add(id)) return
+        nextChangesCheck = now + 4500
+        worker.execute {
+            val result = runCatching { connection.request("/v1/sessions/$id/changes?summary=1") }
+            handler.post {
+                checkingChanges.remove(id)
+                if (!isDestroyed && visible && selectedId == id && connection.endpoint == endpoint) {
+                    changesSession = id; changesInfo = result.getOrNull(); render()
+                }
+            }
+        }
+    }
+
     /** Poll every active chat, not just the visible one. Background completions never switch selection. */
     private fun refresh() {
+        refreshChanges()
         if (!connection.paired) return
         for (job in history.activeJobs()) {
             if (!polling.add(job.id)) continue
@@ -366,7 +401,7 @@ class MainActivity : Activity() {
                     hint = pending.optString("placeholder"); setText(pending.optString("prefill"))
                     inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 }
-                builder.setView(input).setPositiveButton("Send") { _, _ -> reply(JSONObject().put("value", input.text.toString())) }
+                builder.setView(dialogField(input)).setPositiveButton("Send") { _, _ -> reply(JSONObject().put("value", input.text.toString())) }
                     .setNegativeButton("Cancel") { _, _ -> reply(JSONObject().put("cancelled", true)) }
             }
         }

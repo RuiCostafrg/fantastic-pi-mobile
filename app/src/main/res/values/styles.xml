@@ -1,0 +1,14 @@
+<resources>
+    <style name="Theme.PiPocket" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#B4BEFE</item>
+        <item name="android:colorControlActivated">#B4BEFE</item>
+        <item name="android:colorButtonNormal">#313244</item>
+        <item name="android:textColorPrimary">#CDD6F4</item>
+        <item name="android:textColorSecondary">#A6ADC8</item>
+        <item name="android:windowBackground">#1E1E2E</item>
+        <item name="android:statusBarColor">#1E1E2E</item>
+        <item name="android:navigationBarColor">#1E1E2E</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

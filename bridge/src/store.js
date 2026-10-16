@@ -148,6 +148,12 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
       harness.resume();
       return result;
     },
+    async changesSummary(sessionId) {
+      if (!validSessionId(sessionId)) throw Object.assign(new Error('Invalid session'), { status: 400 });
+      const summary = await review.summary(sessionId);
+      const repositoryActionActive = Object.values((await harness.snapshot(Reviews, ctx)).items).some(a => a.sessionId === sessionId && active(a));
+      return { ...summary, repositoryActionActive };
+    },
     async changes(sessionId) {
       if (!validSessionId(sessionId)) throw Object.assign(new Error('Invalid session'), { status: 400 });
       const reviewStates = items => JSON.stringify(Object.values(items).map(a => [a.id, a.status, a.finishedAt]));

@@ -27,6 +27,38 @@ class ReviewUiTest {
             assertFalse(summary.contains("Tests: passed"))
         }
     }
+    @Test fun changesEntryNeedsFilesOrAnUnresolvedAction() {
+        assertFalse(hasReviewChanges(null))
+        assertFalse(hasReviewChanges(JSONObject().put("fileCount", 0)))
+        assertTrue(hasReviewChanges(JSONObject().put("fileCount", 2)))
+        assertTrue(hasReviewChanges(JSONObject().put("fileCount", 0).put("repositoryActionActive", true)))
+        assertTrue(hasReviewChanges(null, uncertainRequest = true))
+        val full = JSONObject("""{"files":[{"path":"a"}],"committedFiles":[{"path":"a"},{"path":"b"}]}""")
+        assertEquals(2, reviewFileCount(full))
+        assertTrue(hasReviewChanges(full))
+        assertFalse(hasReviewChanges(JSONObject().put("operation", JSONObject().put("status", "done"))))
+    }
+    @Test fun readableDiffCountsBothSidesAndPreservesCodeNotGitHeaders() {
+        val patch = "diff --git a/a b/a\nindex abc..def 100644\n--- a/a\n+++ b/a\n@@ -8,3 +12,3 @@\n context\n---old-content\n+++new-content\n \\tend\n\\ No newline at end of file\n"
+        val diff = readableDiff(patch)
+        assertEquals(1, diff.added); assertEquals(1, diff.removed)
+        assertEquals(DiffLine(9, null, '-', "--old-content"), diff.lines.first { it.kind == '-' })
+        assertEquals(DiffLine(null, 13, '+', "++new-content"), diff.lines.first { it.kind == '+' })
+        assertTrue(diff.lines.any { it.before == 10 && it.after == 14 })
+        assertFalse(diffReaderText(diff).contains("index abc"))
+        assertTrue(diffReaderText(diff).contains("No newline at end of file"))
+        assertTrue(diffReaderText(diff).contains("−"))
+    }
+    @Test fun newFilesBinaryAndEmptyFilesAreNotInventedCode() {
+        val fresh = readableDiff("New file: a.txt\n+hello\n+")
+        assertEquals(1, fresh.added); assertEquals(1, fresh.lines.first().after)
+        assertEquals(0, readableDiff("Binary files a/x and b/x differ\n").added)
+        assertEquals(0, readableDiff("New file: empty\n+").added)
+        assertTrue(readableDiff("New symbolic link → target").lines.any { it.content.contains("target") })
+        assertEquals("Modified", fileStatusLabel(" M"))
+        assertEquals("Added", fileStatusLabel("??"))
+        assertEquals("Conflict", fileStatusLabel("UU"))
+    }
     @Test fun diffRetainsExactTextAndUsesDistinctAdditionRemovalColors() {
         val text = "diff --git a/file b/file\n--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\n+new\n context\n"
         val diff = coloredDiff(text)

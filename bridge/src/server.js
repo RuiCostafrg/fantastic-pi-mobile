@@ -38,7 +38,7 @@ export function makeServer(store, token, logger = log) {
       const session = path.match(/^\/v1\/sessions\/([a-zA-Z0-9][a-zA-Z0-9_-]{0,79})\/(changes|diff|actions)(?:\/([a-zA-Z0-9-]{8,80})(\/cancel)?)?$/);
       if (session) {
         const [, id, action, operationId, cancel] = session;
-        if (!operationId && req.method === 'GET' && action === 'changes') return send(200, await store.changes(id));
+        if (!operationId && req.method === 'GET' && action === 'changes') return send(200, await (url.searchParams.get('summary') === '1' ? store.changesSummary(id) : store.changes(id)));
         if (!operationId && req.method === 'GET' && action === 'diff') return send(200, await store.diff(id, { revision: url.searchParams.get('revision'), path: url.searchParams.get('path'), scope: url.searchParams.get('scope') }));
         if (!operationId && req.method === 'POST' && action === 'actions') return send(202, await store.reviewAction(id, body));
         if (operationId && !cancel && req.method === 'GET' && action === 'actions') return send(200, await store.getReview(id, operationId));

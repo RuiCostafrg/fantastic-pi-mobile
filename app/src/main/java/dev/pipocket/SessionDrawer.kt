@@ -30,7 +30,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
         addView(summary)
         addView(context.actionButton("＋ New chat", "New chat") {
             showingArchive = false; search.setText(""); newChat(); renderRows()
-        }, LayoutParams(-1, context.dp(52)).apply { topMargin = context.dp(16); bottomMargin = context.dp(14) })
+        }, LayoutParams(-1, -2).apply { topMargin = context.dp(16); bottomMargin = context.dp(14) })
         search.apply {
             hint = "Search chats"; contentDescription = "Search chats"; textSize = 15f
             inputType = InputType.TYPE_CLASS_TEXT; isSingleLine = true
@@ -43,10 +43,11 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
                 override fun afterTextChanged(s: Editable?) = Unit
             })
         }
-        addView(search, LayoutParams(-1, context.dp(48)))
+        search.minimumHeight = context.dp(48)
+        addView(search, LayoutParams(-1, -2))
         addView(ScrollView(context).apply { addView(rows); isFillViewport = true }, LayoutParams(-1, 0, 1f).apply { topMargin = context.dp(12) })
-        addView(archiveButton, LayoutParams(-1, context.dp(48)))
-        addView(context.actionButton("Settings", action = settings), LayoutParams(-1, context.dp(48)).apply { topMargin = context.dp(6) })
+        addView(archiveButton, LayoutParams(-1, -2))
+        addView(context.actionButton("Settings", action = settings), LayoutParams(-1, -2).apply { topMargin = context.dp(6) })
         addView(context.textLabel("Separate Git worktrees.\nPhone and Git history are shared.", 12f, true))
     }
     fun render(items: List<ChatSession>, selectedId: String) {
@@ -97,10 +98,10 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
                 labels.addView(context.textLabel(state, 12f, true))
                 // Muted grey labels, not disabled controls: still readable and fully interactive.
                 row.addView(labels, LayoutParams(0, -2, 1f))
-                val more = context.actionButton("⋮", "Chat options: ${session.title}") {}
+                val more = context.iconButton("more", "Chat options: ${session.title}") {}
                 more.background = rounded(PocketColors.panel, context.dp(12).toFloat())
                 more.setOnClickListener { menu(more, session) }
-                row.addView(more, LayoutParams(context.dp(44), context.dp(48)))
+                row.addView(more, LayoutParams(context.dp(48), context.dp(48)))
                 rows.addView(row, LayoutParams(-1, -2).apply { bottomMargin = context.dp(4) })
             }
         }

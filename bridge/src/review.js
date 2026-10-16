@@ -53,6 +53,19 @@ async function inProgress(path) {
 
 /** Read snapshots and apply only explicitly confirmed, revision-bound repository actions. */
 export function createReview({ workspaces }) {
+  // Navigation-only indicator: no content reads/hashes, no checkout creation.
+  async function summary(sessionId) {
+    let workspace;
+    try { workspace = await workspaces.existing(sessionId); }
+    catch (e) { if (e.status === 404) return { hasChanges: false, fileCount: 0, workingCount: 0, committedCount: 0 }; throw e; }
+    const raw = (await git(workspace.path, ['status', '--porcelain=v1', '-z', '--untracked-files=all'])).stdout;
+    const working = raw.split('\0').filter(Boolean).map(line => line.slice(3));
+    const target = await git(workspace.path, ['rev-parse', '--verify', 'refs/heads/' + workspace.baseBranch + '^{commit}'], [0, 128]);
+    const committed = target.code === 0
+      ? (await git(workspace.path, ['diff', '--name-only', '-z', '--no-renames', target.stdout.trim() + '...HEAD', '--'])).stdout.split('\0').filter(Boolean) : [];
+    const fileCount = new Set([...working, ...committed]).size;
+    return { hasChanges: fileCount > 0, fileCount, workingCount: working.length, committedCount: committed.length };
+  }
   async function snapshot(sessionId) {
     const workspace = await workspaces.existing(sessionId);
     const root = workspace.path;
@@ -165,7 +178,7 @@ export function createReview({ workspaces }) {
     }
     throw error(400, 'Unknown repository action');
   }
-  return { snapshot, diff, execute };
+  return { summary, snapshot, diff, execute };
 }
 
 function runTests(cwd, command, signal) {

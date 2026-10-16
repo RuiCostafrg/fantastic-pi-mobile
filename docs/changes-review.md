@@ -1,19 +1,19 @@
 # Changes review and local integration
 
-Implemented in Android/bridge version 0.5.0, health protocol v4.
+Implemented in Android/bridge version 0.5.0; native review/navigation redesigned in 0.6.0. Health protocol remains v4 (summary reads are additive).
 
 ## Workflow
 
-Open **Δ** (accessible label: Review changes) or **⋮ → Changes** in a chat. This screen is scoped to that chat's existing worktree; read requests never create or reset a checkout.
+Tap **Review N changed files** (accessible label: Review changes) or **⋮ → Changes** in a chat with working or committed changes. The entry is hidden for empty/unchanged chats, but remains available for an active repository action or uncertain persisted operation. Committed changes count until integration, not just until commit. Lightweight `GET …/changes?summary=1` supplies navigation counts without content hashing or checkout creation. This screen is scoped to that chat's existing worktree; read requests never create or reset a checkout. See [mobile review design](mobile-review-design.md).
 
-- **Working changes:** tracked modifications, additions/deletions, and non-ignored untracked files. Selection is initially empty. Tap a filename to inspect its diff.
-- **Committed changes vs local default:** changes introduced by the branch since its merge base with the recorded local default branch. These are separate from work that still needs committing.
-- **Branch information:** checkout directory, branch, HEAD, and ahead/behind counts against the local default. This is not a claim that the remote has been refreshed or updated.
-- **Diff viewer:** monospace, colored additions/removals/headers, selectable text, Copy, and a scrollable view. New text files are previewed; untracked binary files show size/hash; symlinks show their link target without reading the destination.
+- **Working files:** tracked modifications, additions/deletions, and non-ignored untracked files. Selection is initially empty. Tap a filename to inspect its diff.
+- **Already committed:** changes introduced by the branch since its merge base with the recorded local default branch. These are separate from work that still needs committing.
+- **Branch & folder details:** checkout directory, branch, HEAD, and ahead/behind counts against the local default. This is not a claim that the remote has been refreshed or updated.
+- **Diff viewer:** full-screen monospace unified code, before/after line numbers, addition/removal signs and background tints, selectable text and horizontal/vertical scrolling. Raw patch and Copy patch keep original data unchanged. New text files are previewed; untracked binary files show size/hash; symlinks show their link target without reading the destination.
 
 ### Selected-file commits
 
-Select files, tap Commit selected, enter a message, and confirm. The action includes the entire current contents/mode of those files, not selected hunks or only the currently staged portions. It does not include unrelated files that were already staged.
+Select files, tap Commit N selected files, enter a message, and confirm. The action includes the entire current contents/mode of those files, not selected hunks or only the currently staged portions. It does not include unrelated files that were already staged.
 
 The implementation validates every selection against the current file list, passes literal path arguments after `--`, stages only those files, and uses `git commit --only`. Hooks and GPG signing are disabled for app-made commits/merges so these do not trigger interactive prompts or implicitly run project hooks. Configure a Git identity yourself and explicitly run required checks. There is no amend, discard, reset, force-push, or automatic commit operation.
 
@@ -31,7 +31,7 @@ Revision fingerprints bind repository/worktree identity, HEAD, tracked/untracked
 
 ### Explicit local integration
 
-Merge into local `<default>` integrates **all committed work** from the chat, not just the files last selected in the UI. The confirmation explicitly says it updates the original checkout's working files. It never pushes or opens a PR.
+Merge into `<default>` integrates locally **all committed work** from the chat, not just the files last selected in the UI. The confirmation explicitly says it updates the original checkout's working files. It never pushes or opens a PR.
 
 Guards:
 

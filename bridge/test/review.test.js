@@ -41,6 +41,31 @@ async function waitFor(store, sessionId, predicate) {
   throw new Error('Repository action timed out');
 }
 
+test('navigation summary is non-creating, chat-scoped, and follows working/committed/integrated files', () => fixture(async ({ workspace: w, workspaces, review, source }) => {
+  assert.equal((await review.summary('ordinary')).hasChanges, false);
+  await assert.rejects(workspaces.existing('ordinary'), /no worktree/);
+  await writeFile(join(source, 'source-only.txt'), 'not this chat\n');
+  assert.equal((await review.summary('chat')).fileCount, 0);
+  await writeFile(join(w.path, 'file.txt'), 'changed\n');
+  await writeFile(join(w.path, 'new.txt'), 'new\n');
+  assert.deepEqual(await review.summary('chat'), { hasChanges: true, fileCount: 2, workingCount: 2, committedCount: 0 });
+  await apply(review, 'commit', { paths: ['file.txt', 'new.txt'], message: 'Changes' });
+  assert.deepEqual(await review.summary('chat'), { hasChanges: true, fileCount: 2, workingCount: 0, committedCount: 2 });
+  await writeFile(join(w.path, 'file.txt'), 'again\n');
+  assert.equal((await review.summary('chat')).fileCount, 2, 'same file counted once across working/committed');
+  await apply(review, 'commit', { paths: ['file.txt'], message: 'Again' });
+  await rm(join(source, 'source-only.txt'));
+  await apply(review, 'merge');
+  assert.equal((await review.summary('chat')).hasChanges, false);
+}));
+
+test('navigation summary does not read changed file contents or follow symlinks', () => fixture(async ({ workspace: w, review, directory }) => {
+  await writeFile(join(w.path, 'large.bin'), Buffer.alloc(17 * 1024 * 1024));
+  await symlink(join(directory, 'missing-private-target'), join(w.path, 'link'));
+  assert.equal((await review.summary('chat')).fileCount, 2);
+  await assert.rejects(review.snapshot('chat'), /16 MiB/);
+}));
+
 test('review lists tracked/untracked/deleted files and safe, bounded text/binary/symlink diffs', () => fixture(async ({ workspace: w, review, directory }) => {
   await writeFile(join(w.path, 'file.txt'), 'changed\n');
   await writeFile(join(w.path, 'new file.txt'), 'hello\n');
@@ -211,11 +236,14 @@ test('repository actions block conflicting model admission and test cancellation
     const s = await store.changes('chat');
     await store.reviewAction('chat', { operationId: 'cancel-test-action', action: 'test', revision: s.revision, command: 'sleep 20' });
     await waitFor(store, 'chat', s => s.operation.status === 'running');
+    assert.equal((await store.changesSummary('chat')).repositoryActionActive, true);
+    assert.equal((await store.changesSummary('other-chat')).repositoryActionActive, false);
     await assert.rejects(store.submit('blocked-model', 'hi', 'other-chat'), { status: 429 });
     await assert.rejects(store.reviewAction('chat', { operationId: 'another-test-action', action: 'test', revision: s.revision, command: 'true' }), { status: 409 });
     await assert.rejects(store.cancelReview('different-chat', 'cancel-test-action'), { status: 404 });
     await store.cancelReview('chat', 'cancel-test-action');
     await waitFor(store, 'chat', s => s.operation.status === 'cancelled');
+    assert.equal((await store.changesSummary('chat')).repositoryActionActive, false);
   } finally { await store.close(); }
 }));
 
@@ -257,6 +285,10 @@ test('authenticated HTTP review routes validate actions and never log filenames 
   const req = (path, body, auth = true) => fetch(url + '/v1/sessions/chat/' + path, { headers: auth ? { Authorization: 'Bearer ' + token } : {}, ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
   try {
     assert.equal((await req('changes', undefined, false)).status, 401);
+    assert.equal((await req('changes?summary=1', undefined, false)).status, 401);
+    const indicator = await req('changes?summary=1');
+    assert.equal(indicator.status, 200);
+    assert.deepEqual(await indicator.json(), { hasChanges: true, fileCount: 1, workingCount: 1, committedCount: 0, repositoryActionActive: false });
     const s = await (await req('changes')).json();
     const diff = await req('diff?scope=working&path=file.txt&revision=' + s.revision); assert.equal(diff.status, 200);
     assert.match((await diff.json()).text, /PRIVATE_DIFF_TEXT/);
