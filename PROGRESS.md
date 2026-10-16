@@ -2,6 +2,19 @@
 
 Updated: 2026-10-16
 
+## Task-organized sidebar (0.3.0) — complete
+
+- Sidebar hierarchy is now **New chats → Needs attention → Working → Finished**. Pins prioritize only within a section. Working titles use muted grey instead of looking disabled; selection remains visible.
+- Requests awaiting approval and completed Pi replies belong in Needs attention. Failures, interruptions and cancellations also stay available for review.
+- **Mark finished** is an explicit user action, separate from request `done`. Finished tasks show **✓ Finished by you**, can be reopened explicitly, and reopen automatically when another message is sent.
+- **Archive chat** is available only for inactive, user-finished tasks. Archive hides them from the main list without deleting history/context. **Archive (N)** opens a separate searchable archive list. Archived chats are read-only until **Restore chat**, which returns them to Finished.
+- SQLite v3 adds local `finished` / `archived` flags without erasing old data. Lifecycle edits are transactional with request admission; running/approval-waiting work cannot be marked finished or archived. No bridge API or Pi session IDs changed.
+- `assembleDebug assembleDebugAndroidTest lintDebug`: **BUILD SUCCESSFUL**; log `~/.local/android-sdk/pocket-lifecycle-build.log`.
+- Final installed APK: **0.3.0**. Android instrumentation: **OK (9 tests)**. Coverage includes v1/v2 migration, persistent lifecycle flags, archive/admission guards, grouping, muted working labels, and archive/main filtering. Bridge suite remains **11 passed**.
+- On-device pi-droid checks: marked test A finished, archived it, verified absence from main list, verified archive/history after force-stop/relaunch, restored it into Finished. Old history and pairing remain intact.
+- Ran a harmless `sleep 45` request to visually verify Needs attention above muted Working above Finished. Request completed as SIDEBAR_READY. Explicit Reopen and automatic reopen by sending another message both passed.
+- Private pre-upgrade backup: ignored `bridge/data/pre-lifecycle-backup/android-data.tar`. No microphone activated. Existing workspace/device-sharing caveats still apply.
+
 ## Multi-chat release (0.2.0) — complete
 
 - Researched Gemini Android's documented menu/pin/search/rename pattern and Android's navigation drawer guidance; sources and rationale are in `docs/session-navigation-research.md`.

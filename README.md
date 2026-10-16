@@ -27,7 +27,8 @@ The app uses Android's built-in SQLite API (no hosted database). Pi Durable comm
 - Review/edit before Send; no hot microphone or automatic execution.
 - SQLite request history, retained across app restarts.
 - Independent persistent Pi conversations, code editing, and installed Pi extension discovery.
-- Slide-out chat drawer with New chat, title search, pinned/recent sections, rename, and running/approval badges.
+- Slide-out chat drawer with New chat, title search, lifecycle sections, rename, pins, and running/approval badges.
+- Explicit user-finished tasks, reversible archiving, and a separate searchable archive view.
 - Per-chat drafts, transcripts, approvals, and Stop; up to three chats can work simultaneously by default.
 - Extension confirmation, selection, input, and editor dialogs.
 - Tool progress, completed assistant messages, cancellation, and connection errors.
@@ -59,7 +60,7 @@ git commit -m "Enable Android and bridge CI"
 git push
 ```
 
-**Verification so far (2026-10-16):** all 11 bridge/diagnostics/session tests and 4 Android instrumentation tests pass. `assembleDebug assembleDebugAndroidTest lintDebug` passes locally in Termux. On-device tests cover preserved legacy history/pairing, drawer create/switch/rename/pin/search, independent drafts, simultaneous real Pi requests, scoped cancellation, and per-chat context recall. Earlier tests also exercised pi-droid's read-only `android_screen_state` and the unpaired-state regression. Voice input, extension dialogs on-device, and background-process survival remain unverified. See [PROGRESS.md](PROGRESS.md) for the local build workaround and test results.
+**Verification so far (2026-10-16):** all 11 bridge/diagnostics/session tests and 9 Android instrumentation tests pass. `assembleDebug assembleDebugAndroidTest lintDebug` passes locally in Termux. On-device tests cover preserved legacy history/pairing, drawer create/switch/rename/pin/search, independent drafts, simultaneous real Pi requests, scoped cancellation, and per-chat context recall. Earlier tests also exercised pi-droid's read-only `android_screen_state` and the unpaired-state regression. Voice input, extension dialogs on-device, and background-process survival remain unverified. See [PROGRESS.md](PROGRESS.md) for the local build workaround and test results.
 
 The app targets Android 15 and supports Android 8+ (API 26). The bridge is intended to run in Termux on the same physical device. This checkout does not contain an Android SDK/JDK; the tested Termux environment uses separately installed tools and a locally rebuilt ARM-native AAPT2 (see [PROGRESS.md](PROGRESS.md)).
 
@@ -120,7 +121,20 @@ For an emulator with a bridge on your workstation, forward the port with `adb re
 
 ## Multiple chats
 
-Tap **＋** in the top bar or **☰ → New chat**. The drawer shows pinned/recent chats and running/approval badges; search filters titles. Use **⋮** beside a chat (or long-press it) to rename or pin it. Drafts and selected chat survive normal app restarts. Completion in another chat does not switch your selection, and **Stop** targets only the current chat's request.
+Tap **＋** in the top bar or **☰ → New chat**. The drawer groups chats in this order:
+
+1. **New chats** — conversations without a submitted message, including unsent drafts.
+2. **Needs attention** — requests awaiting feedback/approval, completed Pi replies ready for review, and stopped/failed/interrupted requests.
+3. **Working** — connecting/queued/running requests, with muted grey labels. Approval requests move up to Needs attention.
+4. **Finished** — tasks you explicitly marked finished, with **✓ Finished by you**.
+
+Search filters titles within the current view. Pins order chats **within** a lifecycle section; they never move running/finished tasks above attention items. Use **⋮** beside a chat (or long-press it) to rename or pin it. Drafts and selected chat survive normal app restarts. Completion in another chat does not switch your selection, and **Stop** targets only the current chat's request.
+
+### Finish, archive and restore
+
+A **completed Pi reply is not a finished task**. Review it and continue the conversation, or tap **Mark finished** (also in **⋮**). Only you mark a task finished; running/approval-waiting requests cannot be finished or archived. Finished chats remain visible at the bottom with a checkmark.
+
+Use **⋮ → Archive chat** on a finished chat to remove it from the main sidebar. **Archive (N)** opens the separate archive list; history and Pi context are preserved. Open an archived chat to read it and tap **Restore chat** to bring it back into Finished. **Reopen chat** returns it to Needs attention; sending a new message from a finished chat also reopens it automatically. Archived chats cannot send requests until restored. Archive/finish state is local to this Android installation, not a bridge-side deletion or cross-device sync.
 
 Each chat has its own model conversation: a new chat does not automatically receive another chat's messages. Renaming a chat does not reset its context. Existing pre-upgrade history stays in **Main chat**.
 

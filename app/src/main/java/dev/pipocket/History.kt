@@ -13,16 +13,35 @@ data class Job(val id: String, val text: String, val status: String, val answer:
     val active get() = status in listOf("sending", "queued", "running")
 }
 
+enum class ChatSection(val heading: String) {
+    NEW("NEW CHATS"), ATTENTION("NEEDS ATTENTION"), WORKING("WORKING"), FINISHED("FINISHED"), ARCHIVED("ARCHIVED")
+}
+
 data class ChatSession(val id: String, val title: String, val draft: String, val pinned: Boolean,
-    val updatedAt: Long, val status: String?, val needsApproval: Boolean) {
+    val updatedAt: Long, val status: String?, val needsApproval: Boolean,
+    val finished: Boolean = false, val archived: Boolean = false) {
     val active get() = status in listOf("sending", "queued", "running")
+    // A completed Pi turn is not a user-finished task. Approvals outrank background work.
+    val section get() = when {
+        archived -> ChatSection.ARCHIVED
+        needsApproval -> ChatSection.ATTENTION
+        active -> ChatSection.WORKING
+        finished -> ChatSection.FINISHED
+        status == null -> ChatSection.NEW
+        else -> ChatSection.ATTENTION
+    }
 }
 
 /** Owns chat organization, migration and per-chat single-flight admission. IDs never depend on titles. */
-class History(context: Context, name: String = "pocket.sqlite") : SQLiteOpenHelper(context, name, null, 2) {
+class History(context: Context, name: String = "pocket.sqlite") : SQLiteOpenHelper(context, name, null, 3) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE jobs (id TEXT PRIMARY KEY, text TEXT NOT NULL, status TEXT NOT NULL, answer TEXT NOT NULL DEFAULT '', created INTEGER NOT NULL, sessionId TEXT NOT NULL DEFAULT 'pocket', progress TEXT NOT NULL DEFAULT '', pending TEXT NOT NULL DEFAULT '')")
         createSessions(db)
+        addLifecycle(db)
+    }
+    private fun addLifecycle(db: SQLiteDatabase) {
+        db.execSQL("ALTER TABLE sessions ADD COLUMN finished INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
     }
     private fun createSessions(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE sessions (id TEXT PRIMARY KEY, title TEXT NOT NULL, draft TEXT NOT NULL DEFAULT '', pinned INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, updated INTEGER NOT NULL)")
@@ -37,15 +56,16 @@ class History(context: Context, name: String = "pocket.sqlite") : SQLiteOpenHelp
             db.execSQL("ALTER TABLE jobs ADD COLUMN pending TEXT NOT NULL DEFAULT ''")
             createSessions(db)
         }
+        if (oldVersion < 3) addLifecycle(db)
     }
     fun sessions(): List<ChatSession> = readableDatabase.rawQuery("""
         SELECT s.id,s.title,s.draft,s.pinned,s.updated,
           (SELECT status FROM jobs WHERE sessionId=s.id ORDER BY created DESC,rowid DESC LIMIT 1),
-          EXISTS(SELECT 1 FROM jobs WHERE sessionId=s.id AND status IN ('sending','queued','running') AND pending<>'')
+          EXISTS(SELECT 1 FROM jobs WHERE sessionId=s.id AND status IN ('sending','queued','running') AND pending<>''), s.finished, s.archived
         FROM sessions s ORDER BY s.pinned DESC,s.updated DESC,s.rowid DESC
     """.trimIndent(), null).use { c -> buildList {
         while (c.moveToNext()) add(ChatSession(c.getString(0), c.getString(1), c.getString(2), c.getInt(3) != 0,
-            c.getLong(4), if (c.isNull(5)) null else c.getString(5), c.getInt(6) != 0))
+            c.getLong(4), if (c.isNull(5)) null else c.getString(5), c.getInt(6) != 0, c.getInt(7) != 0, c.getInt(8) != 0))
     } }
     fun session(id: String): ChatSession? = sessions().firstOrNull { it.id == id }
     fun createSession(): String {
@@ -63,6 +83,27 @@ class History(context: Context, name: String = "pocket.sqlite") : SQLiteOpenHelp
     fun pin(id: String, pinned: Boolean) {
         writableDatabase.update("sessions", ContentValues().apply { put("pinned", if (pinned) 1 else 0) }, "id=?", arrayOf(id))
     }
+    /** Lifecycle changes are transactional with admission, so running work cannot be hidden. */
+    fun setFinished(id: String, finished: Boolean) = organize(id) { session ->
+        check(!session.active) { "Stop or finish the running request first" }
+        check(!session.archived) { "Restore this chat before reopening it" }
+        check(session.status != null) { "Send a message before marking this chat finished" }
+        ContentValues().apply { put("finished", if (finished) 1 else 0) }
+    }
+    fun setArchived(id: String, archived: Boolean) = organize(id) { session ->
+        check(!session.active) { "Running chats cannot be archived" }
+        check(!archived || session.finished) { "Mark this chat finished before archiving" }
+        ContentValues().apply { put("archived", if (archived) 1 else 0) }
+    }
+    private fun organize(id: String, values: (ChatSession) -> ContentValues) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val session = session(id) ?: error("Unknown chat")
+            db.update("sessions", values(session).apply { put("updated", System.currentTimeMillis()) }, "id=?", arrayOf(id))
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
     fun saveDraft(id: String, text: String) {
         writableDatabase.update("sessions", ContentValues().apply { put("draft", text) }, "id=?", arrayOf(id))
     }
@@ -70,7 +111,9 @@ class History(context: Context, name: String = "pocket.sqlite") : SQLiteOpenHelp
         val db = writableDatabase
         db.beginTransaction()
         try {
-            val title = db.rawQuery("SELECT title FROM sessions WHERE id=?", arrayOf(sessionId)).use { check(it.moveToFirst()) { "Unknown chat" }; it.getString(0) }
+            val session = session(sessionId) ?: error("Unknown chat")
+            check(!session.archived) { "Restore this chat before sending a message" }
+            val title = session.title
             val busy = db.rawQuery("SELECT 1 FROM jobs WHERE sessionId=? AND status IN ('sending','queued','running') LIMIT 1", arrayOf(sessionId)).use { it.moveToFirst() }
             check(!busy) { "This chat already has an active request" }
             val empty = db.rawQuery("SELECT 1 FROM jobs WHERE sessionId=? LIMIT 1", arrayOf(sessionId)).use { !it.moveToFirst() }
@@ -79,7 +122,7 @@ class History(context: Context, name: String = "pocket.sqlite") : SQLiteOpenHelp
                 put("id", id); put("sessionId", sessionId); put("text", text); put("status", "sending"); put("created", now)
             })
             db.update("sessions", ContentValues().apply {
-                put("draft", ""); put("updated", now)
+                put("draft", ""); put("updated", now); put("finished", 0)
                 if (empty && title == "New chat") put("title", text.replace(Regex("\\s+"), " ").take(40))
             }, "id=?", arrayOf(sessionId))
             db.setTransactionSuccessful()

@@ -21,6 +21,12 @@ Attempted OpenAI's [Android FAQ](https://help.openai.com/en/articles/8142208-cha
 - One workspace/provider configuration remains shared. Different model conversations are isolated, but file edits and pi-droid actions are NOT sandboxed or isolated; concurrent actions on the same files/device can conflict. Warn in the drawer and README.
 - No deletion UI in this change: durable deletion, running jobs, and remote session history need a coherent policy first. Pin/rename are safe local organization controls, not server-side deletion or synchronization.
 
+## Follow-up: task lifecycle hierarchy (user-requested)
+
+The user requested new chats first, attention/reply-ready tasks second, muted working tasks third, user-finished tasks last, and reversible archiving. Version 0.3.0 replaces pinned/recent **sections** with New chats / Needs attention / Working / Finished. Pins still prioritize within each section.
+
+Model completion and user completion are intentionally distinct. A `done` request belongs in Needs attention until the user marks the conversation finished. Approvals outrank running work; failures/stops remain visible for review. A new message reopens a finished task. Archive is only available for user-finished, inactive chats, hides them from the main list, and preserves history/context with a restore action. Archived chats are read-only until restored. These local organization flags do not cancel/delete bridge jobs or establish a security boundary.
+
 ## Verification plan
 
 - Bridge integration tests: actual concurrent fake-RPC children, separate session flags, per-chat single-flight admission, global cap, idempotency/session conflicts, approval and cancellation isolation, legacy defaults, persistence/restart non-replay.

@@ -38,7 +38,9 @@ class MainActivity : Activity() {
     private lateinit var draft: EditText
     private lateinit var send: Button
     private lateinit var stop: Button
+    private lateinit var talk: Button
     private lateinit var review: Button
+    private lateinit var lifecycle: Button
     private var selectedId = "pocket"
     private var renderedSession = ""
     private var renderedJobs: List<Job>? = null
@@ -100,6 +102,12 @@ class MainActivity : Activity() {
         root.addView(header)
         subtitle = textLabel("", 12f, true); root.addView(subtitle)
         status = textLabel("", 13f, true).apply { maxLines = 3 }; root.addView(status)
+        lifecycle = actionButton("Mark finished") {
+            history.session(selectedId)?.let { session ->
+                if (session.archived) archiveSession(session, false) else finishSession(session, !session.finished)
+            }
+        }
+        root.addView(lifecycle, LinearLayout.LayoutParams(-1, dp(48)))
         review = actionButton("Review approval") {
             selectedJob()?.let { job -> deferredApprovals.remove(approvalKey(job)); showApproval(job) }
         }
@@ -127,7 +135,8 @@ class MainActivity : Activity() {
         }
         composer.addView(draft)
         val actions = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        actions.addView(actionButton("Talk") { speak() }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        talk = actionButton("Talk") { speak() }
+        actions.addView(talk, LinearLayout.LayoutParams(0, dp(48), 1f))
         stop = actionButton("Stop", "Stop this chat") {
             val job = selectedJob() ?: return@actionButton
             network(job.id) { connection.request("/v1/jobs/${job.id}/cancel", JSONObject()) }
@@ -141,7 +150,7 @@ class MainActivity : Activity() {
         root.addView(textLabel("Review before sending. Pi can change files and operate your phone.", 11f, true))
         drawer.addView(root, DrawerLayout.LayoutParams(-1, -1))
         navigation = SessionDrawer(this, ::switchSession, ::newChat, ::renameSession,
-            { session -> history.pin(session.id, !session.pinned); render() }, ::settings)
+            { session -> history.pin(session.id, !session.pinned); render() }, ::finishSession, ::archiveSession, ::settings)
         val drawerWidth = minOf((resources.displayMetrics.widthPixels * 0.88).toInt(), dp(340))
         drawer.addView(navigation, DrawerLayout.LayoutParams(drawerWidth, -1, GravityCompat.START))
         drawer.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
@@ -162,7 +171,19 @@ class MainActivity : Activity() {
     private fun saveDraft() { handler.removeCallbacks(persistDraft); history.saveDraft(selectedId, draft.text.toString()) }
     private fun hideKeyboard() { (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(draft.windowToken, 0); draft.clearFocus() }
     private fun selectedJob() = history.activeJobs().firstOrNull { it.sessionId == selectedId }
-    private fun newChat() { switchSession(history.createSession()) }
+    private fun newChat() { navigation.showChats(); switchSession(history.createSession()) }
+    private fun finishSession(session: ChatSession, finished: Boolean) {
+        try { history.setFinished(session.id, finished); render() }
+        catch (error: IllegalStateException) { Toast.makeText(this, error.message, Toast.LENGTH_LONG).show() }
+    }
+    private fun archiveSession(session: ChatSession, archived: Boolean) {
+        try {
+            history.setArchived(session.id, archived)
+            if (archived && selectedId == session.id) {
+                switchSession(history.sessions().firstOrNull { !it.archived }?.id ?: history.createSession())
+            } else render()
+        } catch (error: IllegalStateException) { Toast.makeText(this, error.message, Toast.LENGTH_LONG).show() }
+    }
     private fun switchSession(id: String) {
         if (id != selectedId) {
             saveDraft(); approvalDialog?.dismiss(); approvalDialog = null
@@ -174,11 +195,7 @@ class MainActivity : Activity() {
     }
     private fun showMenu(anchor: View) {
         val session = history.session(selectedId) ?: return
-        PopupMenu(this, anchor).apply {
-            menu.add("Rename chat").setOnMenuItemClickListener { renameSession(session); true }
-            menu.add(if (session.pinned) "Unpin chat" else "Pin chat").setOnMenuItemClickListener { history.pin(session.id, !session.pinned); render(); true }
-            menu.add("Settings").setOnMenuItemClickListener { settings(); true }
-        }.show()
+        navigation.menu(anchor, session, includeSettings = true)
     }
     private fun renameSession(session: ChatSession) {
         modalOpen = true
@@ -202,12 +219,20 @@ class MainActivity : Activity() {
         val current = jobs.firstOrNull { it.active }
         title.text = session.title
         val others = sessions.count { it.active && it.id != selectedId }
+        lifecycle.visibility = if (session.archived || (current == null && session.status != null)) View.VISIBLE else View.GONE
+        lifecycle.text = when { session.archived -> "Restore chat"; session.finished -> "✓ Finished · Reopen chat"; else -> "Mark finished" }
+        lifecycle.contentDescription = when { session.archived -> "Restore chat"; session.finished -> "Reopen chat"; else -> "Mark finished" }
+        draft.isEnabled = !session.archived
+        talk.isEnabled = !session.archived
+        talk.alpha = if (talk.isEnabled) 1f else 0.35f
         subtitle.text = if (others > 0) "$others other chats active · shared workspace" else "Independent chat · shared workspace"
         send.text = if (connection.paired) "Send" else "Pair bridge"
-        send.isEnabled = !connection.paired || current == null
+        send.isEnabled = !session.archived && (!connection.paired || current == null)
         stop.isEnabled = connection.paired && current != null && current.status != "sending"
         send.alpha = if (send.isEnabled) 1f else 0.4f; stop.alpha = if (stop.isEnabled) 1f else 0.35f
         status.text = when {
+            session.archived -> "Archived · history preserved. Restore this chat to continue."
+            session.finished -> "✓ Finished by you · archive from ⋮, or send a message to reopen."
             !connection.paired -> "Bridge not paired. Tap Pair bridge; saved requests resume after pairing."
             current?.pending?.isNotEmpty() == true -> "This chat needs your approval. Other chats can keep running."
             current != null -> current.progress.ifBlank { if (current.status == "sending") "Connecting to your Termux bridge…" else "Pi is working in this chat…" }
@@ -271,7 +296,7 @@ class MainActivity : Activity() {
     private fun submit() {
         if (!connection.paired) { settings(); return }
         val text = draft.text.toString().trim()
-        if (text.isBlank() || selectedJob() != null) return
+        if (text.isBlank() || selectedJob() != null || history.session(selectedId)?.archived == true) return
         if (text.length > 20000) { draft.error = "Keep requests under 20,000 characters"; return }
         saveDraft()
         history.add(UUID.randomUUID().toString(), selectedId, text)

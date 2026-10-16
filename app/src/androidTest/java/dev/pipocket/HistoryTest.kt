@@ -74,6 +74,67 @@ class HistoryTest {
             assertTrue(history.session("pocket")!!.needsApproval)
         }
     }
+    @Test fun lifecycleSeparatesReplyReadyFromUserFinishedAndArchiveSurvivesReopen() = database { name ->
+        History(context, name).use { history ->
+            assertEquals(ChatSection.NEW, history.session("pocket")!!.section)
+            history.add("lifecycle-a", "pocket", "A")
+            assertEquals(ChatSection.WORKING, history.session("pocket")!!.section)
+            history.update("lifecycle-a", "running", "", "", "{\"id\":\"approval\"}")
+            assertEquals(ChatSection.ATTENTION, history.session("pocket")!!.section)
+            try { history.setFinished("pocket", true); fail("Finished running work") } catch (_: IllegalStateException) { }
+            try { history.setArchived("pocket", true); fail("Archived running work") } catch (_: IllegalStateException) { }
+            history.update("lifecycle-a", "done", "Answer")
+            assertEquals(ChatSection.ATTENTION, history.session("pocket")!!.section)
+            assertFalse(history.session("pocket")!!.finished)
+            try { history.setArchived("pocket", true); fail("Archived unfinished chat") } catch (_: IllegalStateException) { }
+            history.setFinished("pocket", true)
+            assertEquals(ChatSection.FINISHED, history.session("pocket")!!.section)
+            history.setArchived("pocket", true)
+        }
+        History(context, name).use { history ->
+            assertEquals(ChatSection.ARCHIVED, history.session("pocket")!!.section)
+            assertEquals("Answer", history.jobs("pocket").single().answer)
+            try { history.add("blocked", "pocket", "B"); fail("Submitted into archive") } catch (_: IllegalStateException) { }
+            history.setArchived("pocket", false)
+            assertEquals(ChatSection.FINISHED, history.session("pocket")!!.section)
+            history.setFinished("pocket", false)
+            assertEquals(ChatSection.ATTENTION, history.session("pocket")!!.section)
+            history.setFinished("pocket", true)
+            history.add("lifecycle-b", "pocket", "B")
+            assertFalse(history.session("pocket")!!.finished)
+            assertEquals(ChatSection.WORKING, history.session("pocket")!!.section)
+        }
+    }
+    @Test fun upgradesVersionTwoWithoutLosingOrganization() = database { name ->
+        val path = context.getDatabasePath(name)
+        path.parentFile!!.mkdirs()
+        SQLiteDatabase.openOrCreateDatabase(path, null).use { db ->
+            db.execSQL("CREATE TABLE jobs (id TEXT PRIMARY KEY,text TEXT NOT NULL,status TEXT NOT NULL,answer TEXT NOT NULL DEFAULT '',created INTEGER NOT NULL,sessionId TEXT NOT NULL DEFAULT 'pocket',progress TEXT NOT NULL DEFAULT '',pending TEXT NOT NULL DEFAULT '')")
+            db.execSQL("CREATE TABLE sessions (id TEXT PRIMARY KEY,title TEXT NOT NULL,draft TEXT NOT NULL DEFAULT '',pinned INTEGER NOT NULL DEFAULT 0,created INTEGER NOT NULL,updated INTEGER NOT NULL)")
+            db.execSQL("INSERT INTO sessions VALUES ('pocket','Existing title','Unsent draft',1,1,1)")
+            db.execSQL("INSERT INTO jobs (id,text,status,answer,created) VALUES ('old','Q','done','A',1)")
+            db.version = 2
+        }
+        History(context, name).use { history ->
+            val session = history.session("pocket")!!
+            assertEquals("Existing title", session.title)
+            assertEquals("Unsent draft", session.draft)
+            assertTrue(session.pinned)
+            assertFalse(session.finished)
+            assertFalse(session.archived)
+            assertEquals(ChatSection.ATTENTION, session.section)
+            assertEquals("A", history.jobs("pocket").single().answer)
+        }
+    }
+    @Test fun groupingKeepsNewThenAttentionThenWorkingThenFinished() {
+        fun chat(status: String?, approval: Boolean = false, finished: Boolean = false) =
+            ChatSession("test", "Test", "", false, 0L, status, approval, finished)
+        assertEquals(listOf(ChatSection.NEW, ChatSection.ATTENTION, ChatSection.WORKING, ChatSection.FINISHED),
+            listOf(chat("done", finished = true), chat("running"), chat(null), chat("done"))
+                .sortedBy { it.section.ordinal }.map { it.section })
+        for (status in listOf("cancelled", "failed", "interrupted", "rejected")) assertEquals(ChatSection.ATTENTION, chat(status).section)
+        assertEquals(ChatSection.ATTENTION, chat("running", approval = true).section)
+    }
     @Test fun firstMessageNamesOnlyAnUntitledChat() = database { name ->
         History(context, name).use { history ->
             val id = history.createSession()
