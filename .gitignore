@@ -1,0 +1,14 @@
+.gradle/
+**/build/
+local.properties
+.idea/
+*.iml
+node_modules/
+.env
+.env.*
+!.env.example
+data/
+*.sqlite*
+*.jsonl
+*.keystore
+*.jks
