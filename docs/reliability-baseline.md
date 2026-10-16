@@ -60,9 +60,11 @@ python scripts/check-reliability.py --serial <current-authorized-serial> --scena
 
 The matrix creates a disposable Git repository and localhost bridge using fake Pi RPC. It never reads production `.env`, changes production pairing, or restarts the normal bridge. It force-stops only the fixture APK; instrumentation also terminates that app at phase boundaries. Temporary state is removed on success and retained on failure. No models, microphone or system-setting changes. Lock testing is explicitly opt-in and only appropriate after confirming there is no secure lock; the current phone requires user assistance instead. Never force-stop Termux from this same-phone harness: it also hosts the agent/live bridge.
 
-## Next proposed increment: use the existing tmux + Termux wake-lock setup
+## Next increment: use the existing tmux + Termux wake-lock setup
 
-**User-selected direction for the next session; not implemented or verified for survival.** Prefer building on the existing Termux setup before introducing another Android background mechanism. Notifications remain a separate proposed increment.
+**Update:** explicit management tooling and admission-paused graceful-stop tests are implemented; **production migration, foreground verification and a user-assisted actual-app screen-off/recovery test are complete**. A single real `sleep 120` job was running before the user's off interval, completed once with its expected marker and same UUID, and showed DONE in Pi Pocket after return. Independent continuous Asleep instrumentation and longer/Doze/stress scenarios remain unverified. See [bridge-work.md](bridge-work.md) for exact evidence, commands, the initial legacy-server migration gate and recovery. After user confirmation, the idle bridge was privately backed up and gracefully migrated to a new dedicated `work:pocket-bridge` window, preserving all 14 task records, 85 state/config/session/worktree file hashes and the existing work pane. Actual Termux wake-lock ownership was observed before and after migration. Existing tmux configuration/hooks were unchanged. The findings and sequence below record the original proposal.
+
+**User-selected direction; not verified for survival.** Prefer building on the existing Termux setup before introducing another Android background mechanism. Notifications remain a separate proposed increment.
 
 ### Read-only findings from this session
 

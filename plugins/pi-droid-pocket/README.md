@@ -50,6 +50,12 @@ The pi-droid plugin interface has no abort signal; the bounded subprocess may
 continue until completion/120-second timeout after a caller disconnects. Plugin
 unload never kills it or the bridge. Inspect status before any further mutation.
 
+A successful `pocket.status` inspection is not necessarily readiness. Check
+`data.ready`; `getStatus().ready` is false for unavailable/unverified owners.
+Those inspections expose only `ready`, `state` and an allowlisted reason, not
+partial owner/storage evidence or arbitrary diagnostic strings. They never
+assert that previously dispatched work has stopped.
+
 All safety transactions remain in Pocket: authenticated maintenance, model AND
 review idleness, read-only Durable checks, identity rechecks, online backup,
 SIGTERM and lock-release wait. A refused stop can leave admissions paused;

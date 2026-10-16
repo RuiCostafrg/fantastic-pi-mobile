@@ -5,6 +5,33 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createPlugin, piDroidManifest } from '../index.js';
 
+test('unavailable/unverified inspection is not readiness and never exposes partial or private metadata', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pocket-plugin-state-'));
+  try {
+    await mkdir(join(root, 'scripts'));
+    const fixture = join(root, 'state.json');
+    await writeFile(join(root, 'scripts/bridge-work'), `#!${process.execPath}
+import { readFileSync } from 'node:fs';
+console.log(readFileSync(${JSON.stringify(fixture)}, 'utf8'));
+`, { mode: 0o700 });
+    const plugin = createPlugin();
+    await plugin.initialize({ checkout: root });
+    for (const [state, reason] of [['unavailable', 'storage-lock-missing'], ['unverified', 'http-owner-mismatch'], ['unverified', 'fixture-private-token']]) {
+      await writeFile(fixture, JSON.stringify({ state, ready: false, reason,
+        owner: { pid: 123, startTicks: '77' }, health: { processId: 123, secret: 'fixture-private-token' },
+        storage: { idle: true, activeTasks: 0, totalTasks: 2 } }));
+      const status = await plugin.getStatus();
+      assert.equal(status.ready, false);
+      assert.equal(status.metadata.ready, false);
+      assert.equal(status.metadata.state, state);
+      assert.equal(status.metadata.reason, reason === 'fixture-private-token' ? 'identity-unverified' : reason);
+      assert.equal('owner' in status.metadata, false);
+      assert.equal(JSON.stringify(status).includes('fixture-private-token'), false);
+    }
+    await plugin.destroy();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test('optional host adapter contract; no production config, tmux or ADB', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pocket-plugin-'));
   try {

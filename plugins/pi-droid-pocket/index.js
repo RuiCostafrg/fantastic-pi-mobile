@@ -5,6 +5,11 @@ import { isAbsolute, join } from 'node:path';
 
 const exec = promisify(execFile);
 const commands = ['status', 'start', 'pause', 'resume', 'stop'];
+// These are public controller codes, not arbitrary launcher strings.
+const statusReasons = new Set(['storage-lock-missing', 'owner-unreadable', 'owner-pid-invalid',
+  'owner-process-missing', 'owner-identity-mismatch', 'storage-unreadable', 'health-unavailable',
+  'health-authentication-failed', 'health-unverified', 'health-owner-unverified',
+  'http-owner-mismatch', 'maintenance-unavailable', 'maintenance-unverified', 'owner-changed']);
 const tools = commands.map(command => ({
   name: 'pocket.' + command,
   description: command === 'status' ? 'Read host-local Pocket bridge metadata; no device actions.' :
@@ -41,7 +46,8 @@ class PocketPlugin {
   getCapabilities() { return structuredClone(tools); }
   async getStatus() {
     const result = await this.execute('pocket.status', {});
-    return { ready: result.success, message: result.success ? 'Host bridge identity verified.' : 'Host bridge unavailable or unverified.',
+    const ready = result.success && result.data.ready === true;
+    return { ready, message: ready ? 'Host bridge identity verified.' : 'Host bridge unavailable or unverified; previously dispatched work may still be running.',
       ...(result.success ? { metadata: result.data } : {}) };
   }
   async execute(action, params) {
@@ -61,10 +67,19 @@ class PocketPlugin {
       const { stdout } = await exec(this.launcher, [command], { env, timeout: 120_000, maxBuffer: 1024 * 1024 });
       if (command !== 'status') return { success: true, data: { command, verification: 'launcher-completed' } };
       const state = JSON.parse(stdout);
+      // Inspection succeeded, but this does not establish readiness or idleness.
+      // Do not forward partial owner/storage evidence from an unverified result.
+      if (state.ready === false && ['unavailable', 'unverified'].includes(state.state))
+        return { success: true, data: { ready: false, state: state.state,
+          reason: statusReasons.has(state.reason) ? state.reason : 'identity-unverified' } };
       // Whitelist metadata; never echo launcher output, health/config, tokens or OS errors.
+      // Keep compatibility with the original identity-checked launcher schema.
+      if ((state.ready !== undefined || state.state !== undefined) && (state.ready !== true || state.state !== 'verified'))
+        return refusal('identity-unverified');
       if (!Number.isSafeInteger(state.owner?.pid) || state.health?.processId !== state.owner.pid ||
           typeof state.storage?.idle !== 'boolean') return refusal('identity-unverified');
       return { success: true, data: {
+        ready: true, state: 'verified',
         owner: { pid: state.owner.pid, startTicks: state.owner.startTicks },
         storage: { idle: state.storage.idle, activeTasks: state.storage.activeTasks, totalTasks: state.storage.totalTasks },
         maintenance: state.maintenance == null ? null : {

@@ -23,6 +23,10 @@ and APK lifecycle limitations are not resolved by this extraction.
 
 ---
 
+## Checkout update
+
+HEAD advanced to **63c3f0f — Add guarded bridge management and optional pi-droid Pocket adapter** while the separate actual-app reliability test was being completed. That commit was not created by the test actions described here. Inspect the current committed adapter before planning extraction; the original notes below describe the starting point and are not a claim that no adapter exists now. Preserve this concurrent work. This handoff's newer observer scripts/test evidence and latest actual-app result are additional local work.
+
 ## Intent and priority
 
 The user asked for a handoff so the local automation can later be migrated into pi-droid. **This is notes only; no pi-droid migration has been implemented.** Finish the current Pi Pocket background-reliability increment first. Keep the accepted app UI and durable exact-ID/non-replay behavior.
@@ -103,6 +107,12 @@ The old manual pairing wizard/window was rejected by the user and closed while s
 - Keep credentials in trusted local storage/in-memory/stdin, outside schema examples, argv/titles/diagnostic output. Define private backup permissions/retention and cancellation behavior.
 - A stale lock or unknown owner causes a structured refusal, not forced cleanup. Validate instance identity again immediately before mutation. Treat active/unknown model OR review work as a stop blocker.
 - Before adding Android background mechanisms or survival guarantees, research current official Android/Termux restrictions. Preserve secure lock and user-controlled unlock. Never force-stop Termux from this same-phone agent.
+
+## Later actual-app manual test — successful within stated scope
+
+After the sampler failures, user explicitly requested testing **the installed Pi Pocket app itself**. A new labeled chat was created and a 60-second request completed while awake (setup only). One new 120-second request was then sent through the real app Send control; exact UUID, running status/bash progress and live sleep process were verified before instructing user off for 150 seconds. On return the same request was done and real UI showed `PI · DONE / POCKET_SCREEN_OFF_120_OK`. Persisted Pi session proves one `sleep 120; echo POCKET_SCREEN_OFF_120_OK` dispatch and successful output, **19:34:12.832Z → 19:36:12.903Z**. Bridge PID 16784, original 14 task records/85 file hashes preserved, clean test worktree. Two explicit additional jobs now make 16 terminal tasks. No IME/lock/APK changes or restart. Private artifacts: `bridge/data/real-app-screen-off-20261016-213400/`. Test chat/result retained.
+
+Treat this as successful **user-assisted screen-off/work/recovery**, not independent continuous Asleep proof or a fix for the sampler. The instrumented evidence failures below remain valid migration caveats. Keep the scopes separate in future tool results.
 
 ## Physical sampler finding to carry into migration
 

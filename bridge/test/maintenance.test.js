@@ -76,7 +76,7 @@ test('workflow refuses malformed/stale/wrong-process storage owners without sign
     await writeFile(join(directory, 'bridge.lock'), '-1');
     await assert.rejects(identity(directory), /Invalid storage owner/);
     await writeFile(join(directory, 'bridge.lock'), '2147483647');
-    await assert.rejects(identity(directory), { code: 'ENOENT' });
+    await assert.rejects(identity(directory), { code: 'OWNER_PROCESS_MISSING' });
     await writeFile(join(directory, 'bridge.lock'), String(process.pid));
     await assert.rejects(identity(directory), /identity mismatch/);
     assert.throws(() => idleEvidence(directory));

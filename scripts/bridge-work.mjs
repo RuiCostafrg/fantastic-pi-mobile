@@ -19,14 +19,19 @@ const quote = s => "'" + s.replaceAll("'", "'\\''") + "'";
 
 export async function identity(directory = data, cwd = bridge) {
   const value = (await readFile(join(directory, 'bridge.lock'), 'utf8')).trim();
-  if (!/^[1-9][0-9]*$/.test(value)) throw new Error('Invalid storage owner PID; inspect manually.');
   const pid = Number(value);
+  if (!/^[1-9][0-9]*$/.test(value) || !Number.isSafeInteger(pid) || pid > 2147483647)
+    throw Object.assign(new Error('Invalid storage owner PID; inspect manually.'), { code: 'OWNER_PID_INVALID' });
   const proc = '/proc/' + pid;
-  const args = (await readFile(proc + '/cmdline', 'utf8')).split('\0').filter(Boolean);
+  const command = await readFile(proc + '/cmdline', 'utf8').catch(error => {
+    if (error.code === 'ENOENT') throw Object.assign(new Error('Storage owner process is missing; inspect possible children before recovery.'), { code: 'OWNER_PROCESS_MISSING' });
+    throw error;
+  });
+  const args = command.split('\0').filter(Boolean);
   if (await realpath(await readlink(proc + '/cwd')) !== await realpath(cwd) ||
       await realpath(await readlink(proc + '/exe')) !== await realpath(process.execPath) ||
       resolve(cwd, args.at(-1) ?? '') !== join(cwd, 'src/server.js')) {
-    throw new Error('Storage owner identity mismatch; no signal sent.');
+    throw Object.assign(new Error('Storage owner identity mismatch; no signal sent.'), { code: 'OWNER_IDENTITY_MISMATCH' });
   }
   const fields = (await readFile(proc + '/stat', 'utf8')).split(') ').at(-1).split(' ');
   return { pid, startTicks: fields[19], parent: Number(fields[1]) };
@@ -79,12 +84,40 @@ async function privateBackup() {
 }
 
 async function status() {
-  const owner = await identity();
-  const health = await api('/health');
-  if (health.processId !== undefined && health.processId !== owner.pid) throw new Error('HTTP and storage owners differ; inspect configuration.');
-  let maintenance = null;
-  try { maintenance = await api('/v1/maintenance'); } catch (e) { if (e.status !== 404) throw e; }
-  return { owner, health, maintenance, storage: idleEvidence(), window: windows() };
+  // A successful inspection is not proof that the bridge is ready or work stopped.
+  // Preserve unknowns as null; never infer idleness from a missing lock/process.
+  const result = { state: 'unverified', ready: false, reason: null,
+    owner: null, health: null, maintenance: null, storage: null, window: [], tmuxAvailable: null };
+  const refuse = (state, reason) => ({ ...result, state, ready: false, reason });
+  try { await stat(join(data, 'bridge.lock')); }
+  catch (error) { return refuse(error.code === 'ENOENT' ? 'unavailable' : 'unverified', error.code === 'ENOENT' ? 'storage-lock-missing' : 'owner-unreadable'); }
+  try { result.owner = await identity(); }
+  catch (error) {
+    const reasons = { OWNER_PID_INVALID: 'owner-pid-invalid', OWNER_PROCESS_MISSING: 'owner-process-missing', OWNER_IDENTITY_MISMATCH: 'owner-identity-mismatch' };
+    return refuse('unverified', reasons[error.code] ?? 'owner-unreadable');
+  }
+  try { result.storage = idleEvidence(); }
+  catch { return refuse('unverified', 'storage-unreadable'); }
+  try { result.health = await api('/health'); }
+  catch (error) { return refuse('unavailable', error.status === 401 ? 'health-authentication-failed' : 'health-unavailable'); }
+  if (result.health?.ok !== true || result.health.protocolVersion !== 4) return refuse('unverified', 'health-unverified');
+  if (result.health.processId === undefined) return refuse('unverified', 'health-owner-unverified');
+  if (result.health.processId !== result.owner.pid) return refuse('unverified', 'http-owner-mismatch');
+  try { result.maintenance = await api('/v1/maintenance'); }
+  catch (error) { if (error.status !== 404) return refuse('unverified', 'maintenance-unavailable'); }
+  if (result.maintenance !== null) {
+    const m = result.maintenance;
+    if (typeof m.admissionsPaused !== 'boolean' || !Number.isSafeInteger(m.jobs) || m.jobs < 0 ||
+        !Number.isSafeInteger(m.reviews) || m.reviews < 0 || m.idle !== (m.jobs === 0 && m.reviews === 0))
+      return refuse('unverified', 'maintenance-unverified');
+  }
+  try {
+    const latest = await identity();
+    if (JSON.stringify(latest) !== JSON.stringify(result.owner)) return refuse('unverified', 'owner-changed');
+  } catch { return refuse('unverified', 'owner-changed'); }
+  try { result.window = windows(); result.tmuxAvailable = true; }
+  catch { result.tmuxAvailable = false; }
+  return { ...result, state: 'verified', ready: true };
 }
 function windows() {
   return tmux('list-windows', '-t', session, '-F', '#{window_id} #{window_name}').split('\n').filter(line => line.split(' ').slice(1).join(' ') === windowName);
@@ -152,6 +185,7 @@ async function start() {
   for (let i = 0; i < 50; i++) {
     try {
       const state = await status();
+      if (!state.ready) throw new Error('Startup identity is not verified.');
       const panePid = Number(tmux('display-message', '-p', '-t', pane, '#{pane_pid}'));
       if (state.owner.parent !== panePid) throw new Error('Bridge is not owned by the dedicated pane.');
       console.log(JSON.stringify(state, null, 2)); return;

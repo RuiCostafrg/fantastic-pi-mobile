@@ -124,7 +124,7 @@ For an emulator with a bridge on your workstation, forward the port with `adb re
 
 ### Existing tmux `work` setup
 
-An explicit `scripts/bridge-work status|start|pause|resume|stop` workflow now supports a dedicated, detached `work:pocket-bridge` window, private idle backups and admission-paused graceful stops. It never changes other panes or owns/releases the shared wake lock. **Production migration and foreground app verification are complete; background/screen-off survival remains unverified.** Do not start a second bridge or stop an active one; follow [the first-migration and recovery procedure](docs/bridge-work.md). Tmux/wake locks do not guarantee Android process survival, and there is no automatic restart/replay.
+An explicit `scripts/bridge-work status|start|pause|resume|stop` workflow now supports a dedicated, detached `work:pocket-bridge` window, private idle backups and admission-paused graceful stops. It never changes other panes or owns/releases the shared wake lock. **Production migration and a user-assisted real-app screen-off/recovery test are complete:** a single 120-second bash job finished with the expected result and the same request ID after the reported screen-off interval. Independent Asleep instrumentation, longer/Doze/stress survival remain unverified. Do not start a second bridge or stop an active one; follow [the first-migration and recovery procedure](docs/bridge-work.md). Tmux/wake locks do not guarantee Android process survival, and there is no automatic restart/replay.
 
 ### Optional pi-droid host-management plugin
 

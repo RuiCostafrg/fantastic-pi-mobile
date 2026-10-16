@@ -1,6 +1,6 @@
 # Explicit bridge management in the existing tmux work session
 
-Implemented workflow; **production migration and foreground app verification are complete**. Phone background/screen-off acceptance is still pending. This does not change the Android UI/APK, tmux configuration, shared wake-lock hooks, pairing token or automatic-replay policy.
+Implemented workflow; **production migration, foreground verification and a user-assisted real-app screen-off/recovery test are complete**. Independent continuous Asleep instrumentation, longer/Doze/stress survival remain unverified. This does not change the Android UI/APK, tmux configuration, shared wake-lock hooks, pairing token or automatic-replay policy.
 
 From the repository root:
 
@@ -15,6 +15,12 @@ scripts/bridge-work stop
 `start` requires the existing `work` session and creates a detached, dedicated `pocket-bridge` window. It does not select or replace an existing pane. The window keeps its name and remains after exit so failures are inspectable. The foreground pane controller launches the same Node server from `bridge/`, loading the existing ignored `.env`; output goes to private `bridge/data/bridge.log` (or the configured data directory). No token is passed in command arguments or titles. No automatic restart, boot hook, session recreation or wake-lock command is added.
 
 The Termux shell launcher uses this phone's Termux interpreter path and Node's native `--env-file`. It is not a general Linux service installer. `PI_DATA_DIR`, `PI_WORKSPACE`, `PORT` and the existing other bridge settings retain their meanings. Avoid overriding these in your calling shell: Node environment variables take precedence over `.env`. A different configuration is not a migration of the same bridge.
+
+## Read-only status semantics
+
+`status` exits successfully when inspection completes, even when the bridge cannot be verified. Check JSON `ready === true` and `state === "verified"`, not just the command exit code. Missing locks return `state: "unavailable"`, `ready: false`, `reason: "storage-lock-missing"`; stale/malformed/wrong owners return structured unverified reasons. Unknown evidence stays null. Missing ownership does **not** prove all previously dispatched work stopped or authorize a restart, lock deletion or replay. Status never creates storage, starts a server or changes admissions.
+
+Authenticated health must match the storage owner and protocol, maintenance metadata must validate when supported, and owner identity is rechecked. A missing tmux session does not invalidate an otherwise verified bridge; `tmuxAvailable: false` reports that separately. Start still requires the dedicated session and verifies its pane ownership.
 
 ## Safe stops after migration
 
@@ -80,7 +86,15 @@ Observed in this implementation session:
 - Android `dumpsys power` explicitly reported `PARTIAL_WAKE_LOCK 'com.termux.app.TermuxService'`, UID 10226, and activity-services evidence showed the Termux foreground service. This proves a held lock **at that observation**, not perpetual ownership or survival.
 - 42 bridge tests passed; isolated real-tmux workflow passed. No Android rebuild/install, visible lifecycle loop, screen-off test or security/battery/IME change was made.
 
-### Opt-in short screen-off observation
+### Actual installed-app manual screen-off/recovery result
+
+A successful user-assisted scenario used the normal **dev.pipocket 0.6.1** app and real configured Pi provider, not the fake fixture. A new chat **Screen-off reliability test** first completed a 60-second sleep during setup while awake; that request is not background evidence. One later request was sent using the app's Send control, asking for `sleep 120; echo POCKET_SCREEN_OFF_120_OK`, with no edits/device tools. Before asking for screen-off, verified that exact request's persisted UUID/server `running`, bash tool-start progress and a real sleep process under the existing bridge. User was instructed off for 150 seconds and reported back afterward.
+
+After return, authenticated GET of the same UUID was done with the expected marker, and the app's actual UI showed **PI · DONE / POCKET_SCREEN_OFF_120_OK**. Persisted real Pi history proves exactly one matching bash dispatch, a successful output and tool timestamps **2026-10-16T19:34:12.832Z → 19:36:12.903Z** (~120.071 seconds), before user return. One terminal Durable task for that ID; no retry/replay. Bridge retained PID 16784, all original 14 task records and 85 file hashes matched; two explicit test jobs are additional history (16 total terminal tasks). Test worktree clean. No APK/IME/lock/battery changes or production restart. Left the test chat/result visible.
+
+Private evidence is ignored under `bridge/data/real-app-screen-off-20261016-213400/`; earlier awake setup under `real-app-screen-off-20261016-212347/`. This verifies bounded real-app work/recovery across a **user-reported** screen-off interval. It is not continuous independently measured Asleep proof, a sampler fix, pending-approval/parallel screen-off acceptance, or Doze/all-night/memory-pressure/provider-network survival. No further visible loop was automatically started.
+
+### Opt-in instrumented screen-off observation — still inconclusive
 
 After agreeing the visible step with the user, the isolated harness also supports:
 
@@ -100,6 +114,6 @@ This is **bridge-only**, not an Android-app lifecycle or real-provider test. Pow
 
 Latest detached-sampler physical attempt: ignored `bridge/data/screen-off-check-20261016-211140/`, **inconclusive**. It recorded 126 Awake samples, then became stale before Asleep; the shell-completion phase was not reached. After the user's reported off/unlock interval, production retained PID 16784, all 14 exact task records and 85 saved file hashes matched. Authorized reconnect found the exact sampler process absent (no done marker); archived metadata and cleaned only its own script/shared directory. The changed ADB port/absent sampler do not establish the precise cause. Detachment and mocked ADB errors are not proof of surviving a real adbd lifecycle change. Further work should diagnose that seam while awake before another user screen-off repetition.
 
-Still pending: one agreed background/screen-off scenario at a time (isolated harmless work first). Production migration and the normal foreground app check are complete. The phone's secure pattern stays unchanged; the user handles unlocking. Never force-stop Termux from this same-phone agent. Existing full phone lifecycle-matrix limitations in [reliability-baseline.md](reliability-baseline.md) still apply.
+The actual-app manual short scenario above is complete. Still pending: sampler lifetime diagnosis/independent continuous Asleep evidence and longer/parallel/approval/stress scenarios, one agreed step at a time. Production migration and foreground verification are complete. The phone's secure pattern stays unchanged; the user handles unlocking. Never force-stop Termux from this same-phone agent. Existing full phone lifecycle-matrix limitations in [reliability-baseline.md](reliability-baseline.md) still apply.
 
 Tmux adds persistence/discoverability; the shared wake lock can keep the CPU awake subject to Android restrictions. Neither prevents Android killing/force-stopping Termux or device reboot. Short tests cannot establish Doze/memory-pressure/provider-network/all-night reliability. Notifications and further Android background mechanisms remain separate work requiring current official-platform research.
