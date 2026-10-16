@@ -1,9 +1,12 @@
 import { spawn } from 'node:child_process';
+import { log } from './log.js';
 
 // RPC uses LF only: Unicode separators are legal inside JSON strings.
 export function runPi({ bin, args, cwd, text, signal, onEvent, clients, id, timeoutMs = 600000 }) {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
+    const exited = new Promise(resolve => child.once('close', resolve));
+    child.on('spawn', () => log('rpc.started', { requestId: id, pid: child.pid }));
     let buffer = '', stderr = '', answer = '', settled = false, failure;
     let chain = Promise.resolve();
     const send = record => { if (!child.stdin.destroyed) child.stdin.write(JSON.stringify(record) + '\n'); };
@@ -15,11 +18,13 @@ export function runPi({ bin, args, cwd, text, signal, onEvent, clients, id, time
     const finish = (error) => {
       if (settled) return;
       settled = true;
+      log('rpc.finished', { requestId: id, failed: Boolean(error), ...(error ? { errorType: error.constructor?.name ?? 'Error' } : {}) });
       clearTimeout(timer);
       signal.removeEventListener('abort', aborted);
       clients.delete(id);
       kill();
-      chain.then(() => error ? reject(error) : resolve(answer), reject);
+      // A completed job must release its Pi process/session writer before another turn starts.
+      exited.then(() => chain).then(() => error ? reject(error) : resolve(answer), reject);
     };
     const aborted = () => finish(new Error('Cancelled'));
     const timer = setTimeout(() => finish(new Error('Pi timed out; inspect the workspace before retrying.')), timeoutMs);
@@ -51,6 +56,7 @@ export function runPi({ bin, args, cwd, text, signal, onEvent, clients, id, time
           chain.catch(error => finish(error));
         }
         if (event.type === 'response' && event.command === 'prompt') {
+          log('rpc.prompt', { requestId: id, success: event.success === true });
           if (!event.success) finish(new Error(event.error ?? 'Pi rejected prompt'));
           else if (event.data?.disposition === 'handled') finish();
         }

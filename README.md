@@ -19,14 +19,16 @@ Android speech service → editable draft → Kotlin app
                           coding tools · extensions · pi-droid
 ```
 
-The app uses Android's built-in SQLite API (no hosted database). Pi Durable commits request IDs, task intent, status, extension dialogs, and results to a second SQLite database in Termux. Pi keeps its own persistent conversation session. There is no second “router model” and no second set of model credentials: actual work goes through your existing Pi CLI.
+The app uses Android's built-in SQLite API (no hosted database). Pi Durable commits request IDs, task intent, status, extension dialogs, and results to a second SQLite database in Termux. Pi keeps a separate persistent conversation session for each chat. There is no second “router model” and no second set of model credentials: actual work goes through your existing Pi CLI.
 
 ### Included
 
 - Voice input using Android's installed speech activity; typing works without it.
 - Review/edit before Send; no hot microphone or automatic execution.
 - SQLite request history, retained across app restarts.
-- Persistent Pi conversation, code editing, and installed Pi extension discovery.
+- Independent persistent Pi conversations, code editing, and installed Pi extension discovery.
+- Slide-out chat drawer with New chat, title search, pinned/recent sections, rename, and running/approval badges.
+- Per-chat drafts, transcripts, approvals, and Stop; up to three chats can work simultaneously by default.
 - Extension confirmation, selection, input, and editor dialogs.
 - Tool progress, completed assistant messages, cancellation, and connection errors.
 - Stable client request IDs: reconnecting after a lost HTTP response does not create a second job.
@@ -57,9 +59,9 @@ git commit -m "Enable Android and bridge CI"
 git push
 ```
 
-**Verification so far:** the bridge integration suite passes locally. The Android APK has not been compiled or tested on-device yet; an Android SDK/JDK is not installed in the development Termux environment.
+**Verification so far (2026-10-16):** all 11 bridge/diagnostics/session tests and 4 Android instrumentation tests pass. `assembleDebug assembleDebugAndroidTest lintDebug` passes locally in Termux. On-device tests cover preserved legacy history/pairing, drawer create/switch/rename/pin/search, independent drafts, simultaneous real Pi requests, scoped cancellation, and per-chat context recall. Earlier tests also exercised pi-droid's read-only `android_screen_state` and the unpaired-state regression. Voice input, extension dialogs on-device, and background-process survival remain unverified. See [PROGRESS.md](PROGRESS.md) for the local build workaround and test results.
 
-The app targets Android 15 and supports Android 8+ (API 26). The bridge is intended to run in Termux on the same physical device. This checkout does not contain an Android SDK/JDK or promise native Android builds directly in Termux.
+The app targets Android 15 and supports Android 8+ (API 26). The bridge is intended to run in Termux on the same physical device. This checkout does not contain an Android SDK/JDK; the tested Termux environment uses separately installed tools and a locally rebuilt ARM-native AAPT2 (see [PROGRESS.md](PROGRESS.md)).
 
 ## 2. Run the bridge in Termux
 
@@ -99,10 +101,10 @@ The bridge binds **127.0.0.1:8787 only**. It does not expose an unauthenticated 
 
 ## 3. Pair and talk
 
-1. Open **Pi Pocket → Settings**.
+1. Open **Pi Pocket → ☰ → Settings** (also available under the chat's **⋮** menu).
 2. Leave the URL as `http://127.0.0.1:8787`.
 3. Paste the **same** pairing token from the bridge's `.env`.
-4. Save; the app tests the connection.
+4. Save; use **Test** in Settings to check the saved connection.
 5. Tap **Talk**, dictate, edit the draft, and tap **Send**.
 6. Answer any extension approval dialogs; use **Stop** to cancel work.
 
@@ -116,6 +118,18 @@ Device actions require pi-droid and its ADB/device setup to already work in the 
 
 For an emulator with a bridge on your workstation, forward the port with `adb reverse tcp:8787 tcp:8787` and keep the app's localhost URL. Remote hosts require a properly authenticated HTTPS tunnel/reverse proxy; plain HTTP to non-localhost hosts is deliberately blocked by the app.
 
+## Multiple chats
+
+Tap **＋** in the top bar or **☰ → New chat**. The drawer shows pinned/recent chats and running/approval badges; search filters titles. Use **⋮** beside a chat (or long-press it) to rename or pin it. Drafts and selected chat survive normal app restarts. Completion in another chat does not switch your selection, and **Stop** targets only the current chat's request.
+
+Each chat has its own model conversation: a new chat does not automatically receive another chat's messages. Renaming a chat does not reset its context. Existing pre-upgrade history stays in **Main chat**.
+
+**Separate contexts are not separate sandboxes.** All chats share `PI_WORKSPACE`, provider configuration, installed tools, and the same physical phone. Avoid asking different chats to edit the same files or operate the phone simultaneously. A tool can read shared files, including history if permissions allow; this is not a security boundary.
+
+The bridge admits one active request per chat and three across chats by default. Configure `PI_MAX_CONCURRENT=1` through `8` in `.env` to adjust this. Additional app requests wait/retry with their original IDs. Keep Termux alive; this feature does not add an Android foreground service. There is no chat deletion/export UI yet.
+
+Research and design rationale: [docs/session-navigation-research.md](docs/session-navigation-research.md).
+
 ## Extension compatibility
 
 The bridge launches the **real installed Pi executable** in RPC mode from `PI_WORKSPACE`, without disabling extensions, skills, MCP, or built-in coding tools. It uses your Pi credentials/settings, user extensions, and trusted project resources.
@@ -126,7 +140,7 @@ Optional `PI_ARGS` in `.env` is a JSON array of additional CLI flags, for exampl
 
 ## Durability and safety
 
-- One active job and one configured workspace at a time. Requests share one Pi conversation.
+- One active job per chat, with a bounded number of parallel chats and one shared configured workspace. Requests in the same chat reuse only that chat's Pi conversation.
 - HTTP acceptance means persisted/queued, **not completed**.
 - If an app request loses its response, it retries the **same UUID and text**.
 - A job not yet dispatched can resume after a bridge restart.
@@ -148,7 +162,30 @@ npm ci --ignore-scripts
 npm test
 ```
 
-Integration tests use real Pi Durable SQLite storage and a deterministic fake RPC child, with no model costs or device actions. They cover persistence/reopen, duplicate admission, conflicting IDs, concurrent-job rejection, approval responses, cancellation, provider failures, handled extension commands, HTTP auth/validation, timeouts, and interrupted-command non-replay.
+Integration tests use real Pi Durable SQLite storage and a deterministic fake RPC child, with no model costs or device actions. They cover persistence/reopen, duplicate admission, conflicting IDs, atomic per-chat admission, bounded parallelism, session isolation/legacy compatibility, approval responses, cancellation, provider failures, handled extension commands, HTTP auth/validation, timeouts, and interrupted-command non-replay.
+
+### Diagnostics and on-device checks
+
+Android diagnostics use the `PiPocket` Logcat tag:
+
+```sh
+adb logcat -s PiPocket:I
+```
+
+The bridge writes JSON metadata to stderr: HTTP route category/status/duration, job IDs/state transitions, and Pi subprocess acceptance/completion. Redirect stderr to a private, ignored local file if needed. The local test deployment uses `bridge/data/bridge.log`. Diagnostics deliberately omit tokens, Authorization headers, arbitrary URLs, prompts, answers, and raw exception messages. These are troubleshooting logs, not a full audit trail; existing SQLite/Pi session history still contains conversation content. Log files currently need manual retention/rotation.
+
+With the main app screen visible, read-only ADB checks are available:
+
+```sh
+# Before pairing (does not unpair or erase existing settings):
+python scripts/check-ui.py unpaired
+# After the latest request completes (checks latest, not an older answer):
+python scripts/check-ui.py done --contains Benfica
+# After stopping the latest request:
+python scripts/check-ui.py cancelled
+```
+
+These scripts require Python and authorized ADB; `ANDROID_SERIAL` selects a device when needed. They never print the UI tree or conversation contents. The unpaired screen offers **Pair bridge** and labels saved active work **WAITING FOR PAIRING**. New unpaired submissions open Settings rather than adding another undeliverable job. Existing pending requests keep their IDs and resume after pairing.
 
 ### Layout
 
@@ -165,8 +202,8 @@ Every route requires `Authorization: Bearer <token>`.
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/health` | Authenticated liveness |
-| POST | `/v1/jobs` | Submit `{requestId, text}`; returns persisted job |
+| GET | `/health` | Authenticated liveness, `protocolVersion: 2`, `maxConcurrent` |
+| POST | `/v1/jobs` | Submit `{requestId, text, sessionId}`; returns persisted job. Omitting `sessionId` uses legacy `pocket` |
 | GET | `/v1/jobs/:id` | Poll status, answer, tool progress, pending dialog |
 | POST | `/v1/jobs/:id/ui` | Respond with matching dialog `id` and `confirmed`, `value`, or `cancelled` |
 | POST | `/v1/jobs/:id/cancel` | Stop a task; no rollback |
@@ -177,7 +214,7 @@ Statuses: `queued`, `running`, `done`, `failed`, `cancelled`, `interrupted`. The
 
 - On-device end-to-end coverage with actual voice and pi-droid actions.
 - Streaming committed partial output, screenshot attachments, and optional text-to-speech.
-- Multiple conversations/projects, searchable history, and data deletion/export.
+- Per-chat projects/workspaces, full-text history search, and data deletion/export.
 - A foreground-service integration and clearer per-action approval policies.
 - Release signing and installable GitHub Releases.
 

@@ -5,11 +5,17 @@ import { createModels } from '@earendil-works/pi-ai/models';
 import { Harness, createRegistry, defineDoc, defineTask, defineExtension } from '@earendil-works/pi-durable';
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node';
 import { runPi } from './rpc.js';
+import { log } from './log.js';
 
 const Jobs = defineDoc({ kind: 'pocket.jobs', version: 1, scope: 'session', initial: () => ({ items: {} }) });
 export const active = job => ['queued', 'running'].includes(job.status);
+export const validSessionId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(id);
+const sessionOf = job => job.sessionId ?? 'pocket';
 
-export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], runner = runPi }) {
+export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], runner = runPi, maxConcurrent = 3 }) {
+  if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1 || maxConcurrent > 8) throw new Error('maxConcurrent must be an integer between 1 and 8');
+  const sessionFlags = new Set(['--session', '--session-id', '--session-dir', '--continue', '--resume', '--fork', '--no-session', '-c', '-r']);
+  if (extraArgs.some(arg => sessionFlags.has(arg.split('=')[0]))) throw new Error('PI_ARGS cannot override session isolation');
   await mkdir(directory, { recursive: true, mode: 0o700 });
   // Explicit exclusive lock: Durable storage itself has no multi-process locking.
   const lockPath = resolve(directory, 'bridge.lock');
@@ -17,9 +23,10 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
   await lock.writeFile(String(process.pid));
   const clients = new Map();
   let harness, root;
-  const update = (id, patch, runtime) => {
+  const update = async (id, patch, runtime) => {
     const change = async tx => { Object.assign((await tx.doc(Jobs)).items[id], patch); };
-    return runtime ? runtime.commit(async tx => { await change(tx); }, ctx) : harness.commit(change, ctx);
+    await (runtime ? runtime.commit(async tx => { await change(tx); }, ctx) : harness.commit(change, ctx));
+    if (patch.status) log('job.state', { requestId: id, status: patch.status });
   };
   const complete = async (task, runtime, status, answer) => {
     await runtime.commit(async tx => {
@@ -27,6 +34,7 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
       await tx.appendEntry(runtime.conversationId, { kind: 'pocket.result', data: { requestId: task.input.id, status, answer } });
       return { status: 'terminal', outcome: { status: 'completed', result: { status } } };
     }, ctx);
+    log('job.state', { requestId: task.input.id, status });
   };
   const Command = defineTask({
     name: 'pocket.command', version: 1, initial: () => ({ phase: 'execute' }),
@@ -43,7 +51,7 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
         try {
           const answer = await runner({
             bin, cwd,
-            args: ['--mode', 'rpc', '--session-dir', resolve(directory, 'pi-sessions'), '--session-id', 'pocket', ...extraArgs],
+            args: [...extraArgs, '--mode', 'rpc', '--session-dir', resolve(directory, 'pi-sessions'), '--session-id', (task.input.sessionId ?? 'pocket') === 'pocket' ? 'pocket' : 'pocket-' + task.input.sessionId],
             text: task.input.text, signal: runtime.signal, clients, id: task.input.id,
             onEvent: async event => {
               if (event.type === 'extension_ui_request') {
@@ -76,20 +84,25 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
   } catch (error) { await lock.close(); await unlink(lockPath); throw error; }
   return {
     async get(id) { return (await harness.snapshot(Jobs, ctx)).items[id]; },
-    async submit(id, text) {
+    maxConcurrent,
+    async submit(id, text, sessionId = 'pocket') {
+      if (!validSessionId(sessionId)) throw Object.assign(new Error('Invalid sessionId'), { status: 400 });
       const result = await root.commit(async tx => {
         const jobs = await tx.doc(Jobs);
         if (jobs.items[id]) {
-          if (jobs.items[id].text !== text) throw Object.assign(new Error('Request ID reused with different text'), { status: 409 });
+          if (jobs.items[id].text !== text || sessionOf(jobs.items[id]) !== sessionId) throw Object.assign(new Error('Request ID reused with different text or session'), { status: 409 });
           return JSON.parse(JSON.stringify(jobs.items[id]));
         }
-        if (Object.values(jobs.items).some(active)) throw Object.assign(new Error('Another command is running; stop it or wait.'), { status: 409 });
-        const taskId = await tx.createTask(Command, { id, text }, { ownership: { kind: 'conversation' } });
-        const job = { id, text, taskId, status: 'queued', answer: '', progress: '', pending: null, createdAt: Date.now() };
+        const running = Object.values(jobs.items).filter(active);
+        if (running.some(job => sessionOf(job) === sessionId)) throw Object.assign(new Error('Another command is running in this session; stop it or wait.'), { status: 409 });
+        if (running.length >= maxConcurrent) throw Object.assign(new Error('Parallel session limit reached; this request will retry when a slot is free.'), { status: 429 });
+        const taskId = await tx.createTask(Command, { id, text, sessionId }, { ownership: { kind: 'conversation' } });
+        const job = { id, text, sessionId, taskId, status: 'queued', answer: '', progress: '', pending: null, createdAt: Date.now() };
         jobs.items[id] = job;
         await tx.appendEntry(root.id, { kind: 'pocket.input', data: { requestId: id, text } });
         return job;
       }, ctx);
+      log('job.admitted', { requestId: id, sessionId, status: result.status });
       harness.resume();
       return result;
     },

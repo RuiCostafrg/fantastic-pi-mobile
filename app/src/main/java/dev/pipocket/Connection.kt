@@ -4,6 +4,8 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.util.Log
+import android.os.SystemClock
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URI
@@ -18,6 +20,8 @@ class BridgeException(val code: Int, message: String) : Exception(message)
 
 class Connection(context: Context) {
     private val prefs = context.getSharedPreferences("connection", Context.MODE_PRIVATE)
+    val paired: Boolean get() = prefs.contains("token") && prefs.contains("iv")
+    private var lastOutcome: String? = null
     val endpoint: String get() = prefs.getString("endpoint", "http://127.0.0.1:8787")!!
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
@@ -45,6 +49,9 @@ class Connection(context: Context) {
         return String(cipher.doFinal(Base64.decode(encrypted, Base64.NO_WRAP)), Charsets.UTF_8)
     }
     fun request(path: String, body: JSONObject? = null): JSONObject {
+        val started = SystemClock.elapsedRealtime()
+        val method = if (body == null) "GET" else "POST"
+        val route = when { path == "/health" -> "health"; path == "/v1/jobs" -> "submit"; else -> "job" }
         val conn = URL(endpoint + path).openConnection() as HttpURLConnection
         try {
             conn.connectTimeout = 5000; conn.readTimeout = 15000
@@ -60,7 +67,19 @@ class Connection(context: Context) {
             val result = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             val json = if (result.isBlank()) JSONObject() else JSONObject(result)
             if (code !in 200..299) throw BridgeException(code, json.optString("error", "Bridge HTTP $code"))
+            outcome("$method $route HTTP $code", started, false)
             return json
+        } catch (error: Exception) {
+            // Deliberately omit exception messages, bodies, URLs and credentials.
+            val reason = if (error is BridgeException) "HTTP ${error.code}" else error.javaClass.simpleName
+            outcome("$method $route $reason", started, true)
+            throw error
         } finally { conn.disconnect() }
+    }
+    @Synchronized private fun outcome(value: String, started: Long, failed: Boolean) {
+        if (value == lastOutcome) return // Do not spam identical polling failures.
+        lastOutcome = value
+        val message = "$value durationMs=${SystemClock.elapsedRealtime() - started}"
+        if (failed) Log.w("PiPocket", message) else Log.i("PiPocket", message)
     }
 }
