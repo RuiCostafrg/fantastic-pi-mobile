@@ -122,6 +122,27 @@ Device actions require pi-droid and its ADB/device setup to already work in the 
 
 For an emulator with a bridge on your workstation, forward the port with `adb reverse tcp:8787 tcp:8787` and keep the app's localhost URL. Remote hosts require a properly authenticated HTTPS tunnel/reverse proxy; plain HTTP to non-localhost hosts is deliberately blocked by the app.
 
+### Existing tmux `work` setup
+
+An explicit `scripts/bridge-work status|start|pause|resume|stop` workflow now supports a dedicated, detached `work:pocket-bridge` window, private idle backups and admission-paused graceful stops. It never changes other panes or owns/releases the shared wake lock. **Production migration and foreground app verification are complete; background/screen-off survival remains unverified.** Do not start a second bridge or stop an active one; follow [the first-migration and recovery procedure](docs/bridge-work.md). Tmux/wake locks do not guarantee Android process survival, and there is no automatic restart/replay.
+
+### Optional pi-droid host-management plugin
+
+The [Pocket plugin guide](plugins/pi-droid-pocket/README.md) explains installation,
+configuration and the `pocket.status|start|pause|resume|stop` actions. It is **not
+activated automatically**. Check `android_plugin_status` first; after explicit
+installation/configuration and reload, invoke these through
+`android_plugin_action` with plugin `pocket` and action such as `pocket.status`.
+Status takes `{}`; mutations require `{ "confirmed": true }` plus human approval.
+Do not use an autonomous cycle to manage the bridge: heartbeat is deliberately
+a no-op. Host-local paths refer to the pi-droid host, not the selected ADB phone.
+
+Reusable identity and passive power-observation helpers are TypeScript library
+APIs in pi-droid; see its `docs/local-reliability-helpers.md`. They are not new
+agent tools or a replacement for Pocket's Python fixture harness. No automatic
+pairing, restart, stale-lock cleanup, wake/unlock or work replay is provided.
+Physical screen-off acceptance remains separate and unverified by this migration.
+
 ## Multiple chats
 
 Tap **＋** in the top bar or **☰ → New chat**. The drawer groups chats in this order:
@@ -249,7 +270,8 @@ Every route requires `Authorization: Bearer <token>`.
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/health` | Authenticated liveness, `protocolVersion: 4`, `worktreeIsolation: true`, `changesReview: true`, `maxConcurrent` |
+| GET | `/health` | Authenticated liveness, `protocolVersion: 4`, `processId`, `worktreeIsolation: true`, `changesReview: true`, `maxConcurrent` |
+| GET / POST | `/v1/maintenance` | Global model/review admission state and idle counts; POST `{paused: boolean}` pauses/resumes new IDs without cancelling work or blocking exact-ID recovery |
 | POST | `/v1/jobs` | Submit `{requestId, text, sessionId}`; returns persisted job. Omitting `sessionId` uses legacy `pocket` |
 | GET | `/v1/jobs/:id` | Poll status, answer, tool progress, pending dialog |
 | POST | `/v1/jobs/:id/ui` | Respond with matching dialog `id` and `confirmed`, `value`, or `cancelled` |

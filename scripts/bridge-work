@@ -1,0 +1,6 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# Existing Termux/tmux hooks own the shared wake lock; never unlock it here.
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$ROOT/bridge"
+exec node --env-file=.env "$ROOT/scripts/bridge-work.mjs" "$@"

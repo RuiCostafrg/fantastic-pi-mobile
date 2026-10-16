@@ -30,6 +30,9 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
   await lock.writeFile(String(process.pid));
   const clients = new Map();
   let harness, root, spaces, review;
+  // Admission changes and this flag are serialized by root.commit.
+  let admissionsPaused = false;
+  const requireAdmissions = () => { if (admissionsPaused) throw Object.assign(new Error('Bridge maintenance: new submissions are paused.'), { status: 429 }); };
   const update = async (id, patch, runtime) => {
     const change = async tx => { Object.assign((await tx.doc(Jobs)).items[id], patch); };
     await (runtime ? runtime.commit(async tx => { await change(tx); }, ctx) : harness.commit(change, ctx));
@@ -126,6 +129,14 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
   return {
     async get(id) { return (await harness.snapshot(Jobs, ctx)).items[id]; },
     maxConcurrent,
+    async maintenance(paused) {
+      return root.commit(async tx => {
+        if (paused !== undefined) admissionsPaused = paused;
+        const jobs = Object.values((await tx.doc(Jobs)).items).filter(active).length;
+        const reviews = Object.values((await tx.doc(Reviews)).items).filter(active).length;
+        return { admissionsPaused, jobs, reviews, idle: jobs === 0 && reviews === 0 };
+      }, ctx);
+    },
     async submit(id, text, sessionId = 'pocket') {
       if (!validSessionId(sessionId)) throw Object.assign(new Error('Invalid sessionId'), { status: 400 });
       const result = await root.commit(async tx => {
@@ -134,6 +145,7 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
           if (jobs.items[id].text !== text || sessionOf(jobs.items[id]) !== sessionId) throw Object.assign(new Error('Request ID reused with different text or session'), { status: 409 });
           return JSON.parse(JSON.stringify(jobs.items[id]));
         }
+        requireAdmissions();
         if (Object.values((await tx.doc(Reviews)).items).some(active)) throw Object.assign(new Error('A repository review action is running; this request will wait.'), { status: 429 });
         const running = Object.values(jobs.items).filter(active);
         if (running.some(job => sessionOf(job) === sessionId)) throw Object.assign(new Error('Another command is running in this session; stop it or wait.'), { status: 409 });
@@ -187,6 +199,7 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
           if (existing.sessionId !== sessionId || JSON.stringify(existing.input) !== JSON.stringify(normalized)) throw Object.assign(new Error('Operation ID reused with different input'), { status: 409 });
           return JSON.parse(JSON.stringify(existing));
         }
+        requireAdmissions();
         if (Object.values(reviews.items).some(active)) throw Object.assign(new Error('Another repository action is running. Wait for it to finish.'), { status: 409 });
         const jobs = Object.values((await tx.doc(Jobs)).items).filter(active);
         if (jobs.some(j => sessionOf(j) === sessionId) || (input.action === 'merge' && jobs.length)) throw Object.assign(new Error('Wait for running Pi requests before changing this repository.'), { status: 409 });

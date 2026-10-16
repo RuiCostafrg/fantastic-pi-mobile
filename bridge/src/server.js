@@ -18,7 +18,7 @@ export function makeServer(store, token, logger = log) {
     try {
       const url = new URL(req.url, 'http://localhost');
       const path = url.pathname;
-      if (req.method === 'GET' && path === '/health') return send(200, { ok: true, runtime: 'pi-durable', protocolVersion: 4, worktreeIsolation: true, changesReview: true, maxConcurrent: store.maxConcurrent ?? DEFAULT_MAX_CONCURRENT });
+      if (req.method === 'GET' && path === '/health') return send(200, { ok: true, runtime: 'pi-durable', processId: process.pid, protocolVersion: 4, worktreeIsolation: true, changesReview: true, maxConcurrent: store.maxConcurrent ?? DEFAULT_MAX_CONCURRENT });
       let body = {};
       if (req.method === 'POST') {
         const chunks = []; let size = 0;
@@ -29,6 +29,13 @@ export function makeServer(store, token, logger = log) {
         }
         try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return send(400, { error: 'Invalid JSON' }); }
         if (!body || typeof body !== 'object' || Array.isArray(body)) return send(400, { error: 'Expected an object' });
+      }
+      if (path === '/v1/maintenance') {
+        if (req.method === 'GET') return send(200, await store.maintenance());
+        if (req.method === 'POST') {
+          if (typeof body.paused !== 'boolean') return send(400, { error: 'Provide paused (boolean)' });
+          return send(200, await store.maintenance(body.paused));
+        }
       }
       if (req.method === 'POST' && path === '/v1/jobs') {
         if (typeof body.requestId !== 'string' || !/^[a-zA-Z0-9-]{8,80}$/.test(body.requestId) || typeof body.text !== 'string' || !body.text.trim() || body.text.length > 20000) return send(400, { error: 'Provide requestId (8–80 letters/numbers/hyphens) and text (1–20000 characters)' });

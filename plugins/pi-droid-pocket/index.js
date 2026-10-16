@@ -1,0 +1,80 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { realpath, access, constants } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
+
+const exec = promisify(execFile);
+const commands = ['status', 'start', 'pause', 'resume', 'stop'];
+const tools = commands.map(command => ({
+  name: 'pocket.' + command,
+  description: command === 'status' ? 'Read host-local Pocket bridge metadata; no device actions.' :
+    `Explicit host-local Pocket ${command}; guarded launcher remains authoritative. No automatic retry.`,
+  requiresApproval: command !== 'status',
+  parameters: { type: 'object', properties: command === 'status' ? {} : { confirmed: { type: 'boolean', const: true } },
+    required: command === 'status' ? [] : ['confirmed'], additionalProperties: false },
+}));
+export const piDroidManifest = {
+  schemaVersion: '1.0', name: 'pocket', displayName: 'Pi Pocket host bridge',
+  description: 'Optional explicit host-local bridge management; not device automation.',
+  requiredCoreVersion: '>=0.2.0', targetApps: ['dev.pipocket'], tools,
+};
+
+class PocketPlugin {
+  name = 'pocket';
+  displayName = piDroidManifest.displayName;
+  targetApps = ['dev.pipocket'];
+  launcher = null;
+  busy = false;
+  destroyed = false;
+  async initialize(config) {
+    // No .env read, process launch, tmux mutation or device selection during loading.
+    if (typeof config.checkout !== 'string' || !isAbsolute(config.checkout)) throw new Error('Absolute host-local Pocket checkout required.');
+    const root = await realpath(config.checkout);
+    this.launcher = join(root, 'scripts/bridge-work');
+    await access(this.launcher, constants.X_OK);
+    this.session = config.session ?? 'work';
+    this.window = config.window ?? 'pocket-bridge';
+    if (![this.session, this.window].every(n => typeof n === 'string' && /^[a-zA-Z0-9_-]+$/.test(n)))
+      throw new Error('Invalid dedicated tmux session/window name.');
+    this.destroyed = false;
+  }
+  getCapabilities() { return structuredClone(tools); }
+  async getStatus() {
+    const result = await this.execute('pocket.status', {});
+    return { ready: result.success, message: result.success ? 'Host bridge identity verified.' : 'Host bridge unavailable or unverified.',
+      ...(result.success ? { metadata: result.data } : {}) };
+  }
+  async execute(action, params) {
+    const command = commands.find(c => action === 'pocket.' + c);
+    const refusal = code => ({ success: false, data: { code }, error: 'No automatic retry; inspect host-local state. Admissions may remain paused.' });
+    if (!command || !params || typeof params !== 'object' || Array.isArray(params) ||
+        Object.keys(params).some(k => command === 'status' || k !== 'confirmed')) return refusal('invalid-action-or-parameters');
+    if (command !== 'status' && params.confirmed !== true) return refusal('explicit-consent-required');
+    if (!this.launcher || this.destroyed) return refusal('not-initialized');
+    if (this.busy) return refusal('controller-busy');
+    this.busy = true;
+    try {
+      // .env is loaded only by the trusted launcher. Never forward host PI/PORT overrides.
+      const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('PI_') && k !== 'PORT' && k !== 'NODE_OPTIONS'));
+      env.PI_POCKET_TMUX_SESSION = this.session;
+      env.PI_POCKET_TMUX_WINDOW = this.window;
+      const { stdout } = await exec(this.launcher, [command], { env, timeout: 120_000, maxBuffer: 1024 * 1024 });
+      if (command !== 'status') return { success: true, data: { command, verification: 'launcher-completed' } };
+      const state = JSON.parse(stdout);
+      // Whitelist metadata; never echo launcher output, health/config, tokens or OS errors.
+      if (!Number.isSafeInteger(state.owner?.pid) || state.health?.processId !== state.owner.pid ||
+          typeof state.storage?.idle !== 'boolean') return refusal('identity-unverified');
+      return { success: true, data: {
+        owner: { pid: state.owner.pid, startTicks: state.owner.startTicks },
+        storage: { idle: state.storage.idle, activeTasks: state.storage.activeTasks, totalTasks: state.storage.totalTasks },
+        maintenance: state.maintenance == null ? null : {
+          admissionsPaused: state.maintenance.admissionsPaused, idle: state.maintenance.idle,
+        },
+      } };
+    } catch { return refusal('controller-refused-or-outcome-unknown'); }
+    finally { this.busy = false; }
+  }
+  async onHeartbeat() { return null; }
+  async destroy() { this.destroyed = true; /* Never stop production on plugin unload. */ }
+}
+export function createPlugin() { return new PocketPlugin(); }
