@@ -7,17 +7,19 @@ import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite
 import { runPi } from './rpc.js';
 import { log } from './log.js';
 import { openWorkspaces } from './workspaces.js';
+import { createReview } from './review.js';
 
 export const DEFAULT_MAX_CONCURRENT = 8;
 export const MAX_CONCURRENT = 32;
 
 const Jobs = defineDoc({ kind: 'pocket.jobs', version: 1, scope: 'session', initial: () => ({ items: {} }) });
+const Reviews = defineDoc({ kind: 'pocket.reviews', version: 1, scope: 'session', initial: () => ({ items: {} }) });
 export const active = job => ['queued', 'running'].includes(job.status);
 export const validSessionId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(id);
 const sessionOf = job => job.sessionId ?? 'pocket';
 
 export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], runner = runPi,
-  maxConcurrent = DEFAULT_MAX_CONCURRENT, defaultBranch, remote = 'origin', workspaces }) {
+  maxConcurrent = DEFAULT_MAX_CONCURRENT, defaultBranch, remote = 'origin', workspaces, reviewActions }) {
   if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1 || maxConcurrent > MAX_CONCURRENT) throw new Error('maxConcurrent must be an integer between 1 and ' + MAX_CONCURRENT);
   const sessionFlags = new Set(['--session', '--session-id', '--session-dir', '--continue', '--resume', '--fork', '--no-session', '-c', '-r']);
   if (extraArgs.some(arg => sessionFlags.has(arg.split('=')[0]))) throw new Error('PI_ARGS cannot override session isolation');
@@ -27,7 +29,7 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
   const lock = await open(lockPath, 'wx', 0o600).catch(() => { throw new Error('Storage locked. Stop the other bridge; after a crash, remove bridge.lock only after verifying no bridge is running.'); });
   await lock.writeFile(String(process.pid));
   const clients = new Map();
-  let harness, root, spaces;
+  let harness, root, spaces, review;
   const update = async (id, patch, runtime) => {
     const change = async tx => { Object.assign((await tx.doc(Jobs)).items[id], patch); };
     await (runtime ? runtime.commit(async tx => { await change(tx); }, ctx) : harness.commit(change, ctx));
@@ -86,13 +88,39 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
     },
     abort: async (task, runtime) => complete(task, runtime, 'cancelled', 'Stopped. Already-completed file/device changes are not rolled back.')
   });
+  const finishReview = async (task, runtime, status, result) => {
+    await runtime.commit(async tx => {
+      Object.assign((await tx.doc(Reviews)).items[task.input.id], { status, result, finishedAt: Date.now() });
+      return { status: 'terminal', outcome: { status: 'completed', result: { status } } };
+    }, ctx);
+    log('review.state', { requestId: task.input.id, sessionId: task.input.sessionId, status });
+  };
+  const ReviewAction = defineTask({
+    name: 'pocket.review', version: 1, initial: () => ({ phase: 'execute' }),
+    phases: { execute: async (task, runtime) => {
+      if (await runtime.memo('dispatched', ctx)) {
+        await finishReview(task, runtime, 'interrupted', { message: 'Bridge restarted during a repository action. Inspect Git/test state; it was not replayed.' }); return;
+      }
+      await runtime.memo('dispatched', true, ctx);
+      await runtime.commit(async tx => { (await tx.doc(Reviews)).items[task.input.id].status = 'running'; }, ctx);
+      try {
+        const result = await review.execute(task.input.sessionId, task.input.input, runtime.signal);
+        await finishReview(task, runtime, 'done', result);
+      } catch (error) {
+        if (runtime.signal.aborted) throw error;
+        await finishReview(task, runtime, 'failed', { message: error.status ? error.message : 'Repository action failed. Inspect state before retrying.' });
+      }
+    } },
+    abort: async (task, runtime) => finishReview(task, runtime, 'cancelled', { message: 'Stopped. Previously completed test/file/Git side effects are not rolled back.' })
+  });
   try {
     spaces = workspaces ?? await openWorkspaces({ cwd, directory, defaultBranch, remote });
+    review = reviewActions ?? createReview({ workspaces: spaces });
     const registry = createRegistry();
-    registry.install(defineExtension({ name: 'pocket', tasks: [Command] }));
+    registry.install(defineExtension({ name: 'pocket', tasks: [Command, ReviewAction] }));
     harness = await Harness.open(await openNodeSqliteStorage(resolve(directory, 'assistant.sqlite')), { registry, models: createModels() }, ctx);
     root = await harness.root(ctx);
-    await harness.commit(async tx => { await tx.doc(Jobs); }, ctx);
+    await harness.commit(async tx => { await tx.doc(Jobs); await tx.doc(Reviews); }, ctx);
     harness.resume();
   } catch (error) { await lock.close(); await unlink(lockPath); throw error; }
   return {
@@ -106,6 +134,7 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
           if (jobs.items[id].text !== text || sessionOf(jobs.items[id]) !== sessionId) throw Object.assign(new Error('Request ID reused with different text or session'), { status: 409 });
           return JSON.parse(JSON.stringify(jobs.items[id]));
         }
+        if (Object.values((await tx.doc(Reviews)).items).some(active)) throw Object.assign(new Error('A repository review action is running; this request will wait.'), { status: 429 });
         const running = Object.values(jobs.items).filter(active);
         if (running.some(job => sessionOf(job) === sessionId)) throw Object.assign(new Error('Another command is running in this session; stop it or wait.'), { status: 409 });
         if (running.length >= maxConcurrent) throw Object.assign(new Error('Parallel session limit reached; this request will retry when a slot is free.'), { status: 429 });
@@ -118,6 +147,61 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
       log('job.admitted', { requestId: id, sessionId, status: result.status });
       harness.resume();
       return result;
+    },
+    async changes(sessionId) {
+      if (!validSessionId(sessionId)) throw Object.assign(new Error('Invalid session'), { status: 400 });
+      const reviewStates = items => JSON.stringify(Object.values(items).map(a => [a.id, a.status, a.finishedAt]));
+      const jobStates = items => JSON.stringify(Object.values(items).filter(j => sessionOf(j) === sessionId).map(j => [j.id, j.status]));
+      const beforeReviews = reviewStates((await harness.snapshot(Reviews, ctx)).items);
+      const beforeJobs = jobStates((await harness.snapshot(Jobs, ctx)).items);
+      const snapshot = await review.snapshot(sessionId);
+      const reviewItems = (await harness.snapshot(Reviews, ctx)).items;
+      const reviews = Object.values(reviewItems);
+      const jobs = Object.values((await harness.snapshot(Jobs, ctx)).items);
+      const refreshRequired = beforeReviews !== reviewStates(reviewItems) || beforeJobs !== jobStates(Object.fromEntries(jobs.map(j => [j.id, j])));
+      const actions = reviews.slice().reverse().filter(a => a.sessionId === sessionId).sort((a, b) => b.createdAt - a.createdAt);
+      const testAction = actions.find(a => a.input.action === 'test');
+      const test = testAction?.result?.test;
+      return { ...snapshot, busy: jobs.some(j => active(j) && sessionOf(j) === sessionId), modelsBusy: jobs.some(active),
+        refreshRequired, repositoryBusy: refreshRequired || reviews.some(active),
+        operation: actions[0] ?? null,
+        tests: testAction ? { status: testAction.status, message: testAction.result?.message, ...test,
+          stale: test ? test.changedDuringRun || test.codeRevision !== snapshot.codeRevision : true } : null };
+    },
+    async diff(sessionId, input) { return review.diff(sessionId, input); },
+    async reviewAction(sessionId, input) {
+      if (!validSessionId(sessionId) || typeof input.operationId !== 'string' || !/^[a-zA-Z0-9-]{8,80}$/.test(input.operationId) || !['commit', 'merge', 'test'].includes(input.action) || typeof input.revision !== 'string' || !/^[a-f0-9]{64}$/.test(input.revision)) throw Object.assign(new Error('Invalid repository action'), { status: 400 });
+      const normalized = { action: input.action, revision: input.revision,
+        ...(input.action === 'commit' ? { paths: input.paths, message: input.message } : {}),
+        ...(input.action === 'test' ? { command: input.command } : {}) };
+      const result = await root.commit(async tx => {
+        const reviews = await tx.doc(Reviews);
+        const existing = reviews.items[input.operationId];
+        if (existing) {
+          if (existing.sessionId !== sessionId || JSON.stringify(existing.input) !== JSON.stringify(normalized)) throw Object.assign(new Error('Operation ID reused with different input'), { status: 409 });
+          return JSON.parse(JSON.stringify(existing));
+        }
+        if (Object.values(reviews.items).some(active)) throw Object.assign(new Error('Another repository action is running. Wait for it to finish.'), { status: 409 });
+        const jobs = Object.values((await tx.doc(Jobs)).items).filter(active);
+        if (jobs.some(j => sessionOf(j) === sessionId) || (input.action === 'merge' && jobs.length)) throw Object.assign(new Error('Wait for running Pi requests before changing this repository.'), { status: 409 });
+        const taskId = await tx.createTask(ReviewAction, { id: input.operationId, sessionId, input: normalized }, { ownership: { kind: 'conversation' } });
+        const action = { id: input.operationId, sessionId, input: normalized, taskId, status: 'queued', createdAt: Date.now(), result: null };
+        reviews.items[action.id] = action;
+        return action;
+      }, ctx);
+      harness.resume();
+      return result;
+    },
+    async getReview(sessionId, id) {
+      const action = (await harness.snapshot(Reviews, ctx)).items[id];
+      if (!action || action.sessionId !== sessionId) throw Object.assign(new Error('Unknown repository action'), { status: 404 });
+      return action;
+    },
+    async cancelReview(sessionId, id) {
+      const action = (await harness.snapshot(Reviews, ctx)).items[id];
+      if (!action || action.sessionId !== sessionId) throw Object.assign(new Error('Unknown repository action'), { status: 404 });
+      if (action.input.action !== 'test') throw Object.assign(new Error('Git actions cannot be cancelled once dispatched; inspect the result.'), { status: 409 });
+      await harness.abortTask(action.taskId, ctx);
     },
     async cancel(id) {
       const job = await this.get(id);

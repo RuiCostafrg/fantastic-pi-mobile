@@ -31,6 +31,7 @@ The app uses Android's built-in SQLite API (no hosted database). Pi Durable comm
 - Explicit user-finished tasks, reversible archiving, and a separate searchable archive view.
 - Per-chat drafts, transcripts, approvals, and Stop; up to eight chats can work simultaneously by default (configurable 1–32).
 - A persistent Git worktree and dedicated branch per chat, based on the current default branch.
+- Native **Changes** screen: working/committed file lists, colored diffs, selected-file commits, recorded test commands/results, and explicit local merges.
 - Extension confirmation, selection, input, and editor dialogs.
 - Tool progress, completed assistant messages, cancellation, and connection errors.
 - Stable client request IDs: reconnecting after a lost HTTP response does not create a second job.
@@ -61,7 +62,7 @@ git commit -m "Enable Android and bridge CI"
 git push
 ```
 
-**Verification so far (2026-10-16):** all 18 bridge/diagnostics/session/worktree tests and 9 Android instrumentation tests pass. `assembleDebug assembleDebugAndroidTest lintDebug` passes locally in Termux. On-device tests cover preserved legacy history/pairing, drawer create/switch/rename/pin/search, independent drafts, simultaneous real Pi requests, scoped cancellation, and per-chat context recall. Earlier tests also exercised pi-droid's read-only `android_screen_state` and the unpaired-state regression. Voice input, extension dialogs on-device, and background-process survival remain unverified. See [PROGRESS.md](PROGRESS.md) for the local build workaround and test results.
+**Verification so far (2026-10-16):** all 34 bridge/diagnostics/session/worktree/review tests and 12 Android instrumentation tests pass. `assembleDebug assembleDebugAndroidTest lintDebug` passes locally in Termux. On-device tests cover preserved legacy history/pairing, drawer create/switch/rename/pin/search, independent drafts, simultaneous real Pi requests, scoped cancellation, and per-chat context recall. A full on-phone Changes workflow also passed against a disposable repository: selected commits preserved unrelated staging, real test failures/successes/stale results/cancellation were shown, and an explicitly confirmed local merge updated only the disposable default branch. Earlier tests also exercised pi-droid's read-only `android_screen_state` and the unpaired-state regression. Voice input, extension dialogs on-device, and background-process survival remain unverified. See [PROGRESS.md](PROGRESS.md) for the local build workaround and test results.
 
 The app targets Android 15 and supports Android 8+ (API 26). The bridge is intended to run in Termux on the same physical device. This checkout does not contain an Android SDK/JDK; the tested Termux environment uses separately installed tools and a locally rebuilt ARM-native AAPT2 (see [PROGRESS.md](PROGRESS.md)).
 
@@ -155,9 +156,22 @@ The bridge admits one active request per chat and **eight** across chats by defa
 
 Research and design rationale: [docs/session-navigation-research.md](docs/session-navigation-research.md).
 
+## Review and integrate code
+
+Open **Δ** in a chat’s header or **⋮ → Changes**. The screen shows the worktree/branch, HEAD, ahead/behind counts against the **local** default branch, working files, and committed changes. Tap a file for a colored, selectable diff with Copy. New chats without a worktree show an empty-state explanation; opening Changes never creates a checkout.
+
+1. Review working files. Check only the files you intend to commit; nothing is preselected.
+2. **Run tests** asks for an exact shell command. It runs in the chat’s project directory with full Termux permissions, has a two-minute timeout, and can be stopped. The app records the actual exit code/output; assistant prose is not test evidence. A changed revision—including a commit—marks older evidence stale.
+3. **Commit selected** asks for a message and confirmation. It commits each selected file’s **whole current content**, not selected hunks. Unrelated pre-staged files are excluded. App-made commits/merges skip Git hooks and GPG signing; run required checks explicitly. Nothing is pushed.
+4. After committing all working changes, **Merge into local `<default>`** asks for confirmation. The original checkout must be clean, on that branch, with no unfinished Git operation. All Pi requests must finish. Merge conflicts and local ignored/untracked path collisions are checked before updating the target. This changes the **local original checkout**, not the remote. Unexpected failures are left for inspection, never automatically reset or aborted.
+
+Actions bind to a review revision; changed files/branch state require a refresh and new confirmation. A repository action temporarily blocks new model admissions (existing unrelated requests may continue, except a merge cannot start while any are active). Operations have persisted IDs and Durable dispatch-intent records: reconnect checks an uncertain ID, an explicit retry uses the same ID, and a dispatched action is not replayed after restart. Archived chats are read-only in the Android Changes UI until restored.
+
+**Not a sandbox or a guarantee of code quality:** a test command can alter files or access anything Termux can; recorded success means that command exited zero for the recorded Git working revision, not that every possible test passed or that the environment is unchanged. Avoid external editors/Git commands during review actions. Previews/output are bounded; large changes, submodules/special files, conflicts, interactive signing/hooks, PR creation, remote pushing, hunk staging and destructive cleanup require manual work. Full details: [docs/changes-review.md](docs/changes-review.md).
+
 ## Extension compatibility
 
-The bridge launches the **real installed Pi executable** in RPC mode from `PI_WORKSPACE`, without disabling extensions, skills, MCP, or built-in coding tools. It uses your Pi credentials/settings, user extensions, and trusted project resources.
+The bridge launches the **real installed Pi executable** in RPC mode from the chat’s worktree derived from `PI_WORKSPACE`, without disabling extensions, skills, MCP, or built-in coding tools. It uses your Pi credentials/settings, user extensions, and trusted project resources.
 
 Optional `PI_ARGS` in `.env` is a JSON array of additional CLI flags, for example explicit `-e` extension paths. This is trusted local configuration, not input the app or model can change.
 
@@ -187,7 +201,7 @@ npm ci --ignore-scripts
 npm test
 ```
 
-Integration tests use real Pi Durable SQLite storage and a deterministic fake RPC child, with no model costs or device actions. They cover persistence/reopen, duplicate admission, conflicting IDs, atomic per-chat admission, bounded parallelism, session isolation/legacy compatibility, approval responses, cancellation, provider failures, handled extension commands, HTTP auth/validation, timeouts, and interrupted-command non-replay.
+Integration tests use real Pi Durable SQLite storage and a deterministic fake RPC child, with no model costs or device actions. They cover persistence/reopen, duplicate admission, conflicting IDs, atomic per-chat admission, bounded parallelism, session isolation/legacy compatibility, approval responses, cancellation, provider failures, handled extension commands, HTTP auth/validation, timeouts, and interrupted-command non-replay. Repository-review tests use real temporary Git repositories and shell commands to cover selected commits, staging isolation, stale revisions, real test evidence, dirty-target/conflict/ignored-file guards, snapshot races, and action non-replay.
 
 ### Diagnostics and on-device checks
 
@@ -217,6 +231,9 @@ These scripts require Python and authorized ADB; `ANDROID_SERIAL` selects a devi
 - `app/src/main/java/dev/pipocket/` — Kotlin activity, SQLite history, HTTP client and Keystore token storage.
 - `bridge/src/store.js` — Durable task definition and persisted request state.
 - `bridge/src/rpc.js` — isolated Pi subprocess and JSONL protocol.
+- `bridge/src/workspaces.js` — stable per-chat Git worktrees and validation.
+- `bridge/src/review.js` — repository snapshots, diffs, selected commits, test commands, and guarded local integration.
+- `app/src/main/java/dev/pipocket/ChangesActivity.kt` — native review/confirmation screen.
 - `bridge/src/server.js` — authenticated loopback API.
 - `bridge/test/` — deterministic integration suite.
 - `ci/build-and-test.yml` — ready-to-enable Android build/lint/APK artifact and bridge tests.
@@ -227,11 +244,16 @@ Every route requires `Authorization: Bearer <token>`.
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/health` | Authenticated liveness, `protocolVersion: 3`, `worktreeIsolation: true`, `maxConcurrent` |
+| GET | `/health` | Authenticated liveness, `protocolVersion: 4`, `worktreeIsolation: true`, `changesReview: true`, `maxConcurrent` |
 | POST | `/v1/jobs` | Submit `{requestId, text, sessionId}`; returns persisted job. Omitting `sessionId` uses legacy `pocket` |
 | GET | `/v1/jobs/:id` | Poll status, answer, tool progress, pending dialog |
 | POST | `/v1/jobs/:id/ui` | Respond with matching dialog `id` and `confirmed`, `value`, or `cancelled` |
 | POST | `/v1/jobs/:id/cancel` | Stop a task; no rollback |
+| GET | `/v1/sessions/:sessionId/changes` | Revision-bound file/branch snapshot, last operation and test evidence; `refreshRequired` means read again before acting |
+| GET | `/v1/sessions/:sessionId/diff?revision=…&scope=working\|committed&path=…` | Bounded diff for a listed file |
+| POST | `/v1/sessions/:sessionId/actions` | Persist `{operationId, revision, action}`; `commit` also takes `paths,message`, `test` takes `command`, `merge` needs no extra fields |
+| GET | `/v1/sessions/:sessionId/actions/:operationId` | Resolve an uncertain request using its exact saved ID |
+| POST | `/v1/sessions/:sessionId/actions/:operationId/cancel` | Stop a test action only; no rollback |
 
 Statuses: `queued`, `running`, `done`, `failed`, `cancelled`, `interrupted`. The app also stores `sending` before server acknowledgement and `rejected` for invalid/conflicting admission. Results are bounded; full coding-agent history lives in Pi's session files. The MVP retains request history indefinitely; retention/export controls and multi-workspace conversation management are follow-up work.
 
@@ -239,7 +261,7 @@ Statuses: `queued`, `running`, `done`, `failed`, `cancelled`, `interrupted`. The
 
 - On-device end-to-end coverage with actual voice and pi-droid actions.
 - Streaming committed partial output, screenshot attachments, and optional text-to-speech.
-- Multi-repository selection, worktree review/merge/cleanup UI, full-text history search, and data deletion/export.
+- Multi-repository selection, conflict-resolution/PR/push and safe worktree cleanup UI, full-text history search, and data deletion/export.
 - A foreground-service integration and clearer per-action approval policies.
 - Release signing and installable GitHub Releases.
 

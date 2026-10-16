@@ -51,7 +51,7 @@ class Connection(context: Context) {
     fun request(path: String, body: JSONObject? = null): JSONObject {
         val started = SystemClock.elapsedRealtime()
         val method = if (body == null) "GET" else "POST"
-        val route = when { path == "/health" -> "health"; path == "/v1/jobs" -> "submit"; else -> "job" }
+        val route = when { path == "/health" -> "health"; path == "/v1/jobs" -> "submit"; path.startsWith("/v1/sessions/") -> "review"; else -> "job" }
         val conn = URL(endpoint + path).openConnection() as HttpURLConnection
         try {
             conn.connectTimeout = 5000; conn.readTimeout = 15000

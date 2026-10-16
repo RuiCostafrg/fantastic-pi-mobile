@@ -44,7 +44,7 @@ export async function openWorkspaces({ cwd, directory, defaultBranch, remote = '
   await mkdir(storage, { recursive: true, mode: 0o700 });
   const storageRoot = await realpath(storage);
   let tail = Promise.resolve();
-  async function prepare(sessionId, signal) {
+  async function prepare(sessionId, signal, create = true) {
     if (typeof sessionId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(sessionId)) throw new Error('Invalid workspace session');
     signal?.throwIfAborted();
     const sessionKey = hash(sessionId);
@@ -53,6 +53,7 @@ export async function openWorkspaces({ cwd, directory, defaultBranch, remote = '
     const branch = 'pocket/' + repoId + '/' + sessionKey;
     let record;
     const reused = await exists(recordPath);
+    if (!create && !reused) throw Object.assign(new Error('This chat has no worktree yet. Send a message first.'), { status: 404 });
     if (reused) {
       record = JSON.parse(await readFile(recordPath, 'utf8'));
       if (record.version !== 1 || record.repository !== common || record.sessionId !== sessionId || record.path !== path || record.branch !== branch || !/^[0-9a-f]{40,64}$/.test(record.baseCommit) || typeof record.baseBranch !== 'string' || !['preparing', 'ready'].includes(record.state)) throw new Error('Workspace record does not match this repository/chat; refusing to reuse it');
@@ -78,6 +79,7 @@ export async function openWorkspaces({ cwd, directory, defaultBranch, remote = '
       record = { version: 1, repository: common, sessionId, path, branch, baseBranch, baseCommit, state: 'preparing' };
       await save(recordPath, record);
     }
+    if (!create && record.state !== 'ready') throw Object.assign(new Error('Worktree preparation is incomplete. Wait for the request to finish.'), { status: 409 });
     if (!await exists(path)) {
       if (record.state === 'ready') throw new Error('Chat worktree is missing. Restore it manually; refusing to recreate or lose work.');
       const branches = await git(root, ['for-each-ref', '--format=%(refname)', 'refs/heads/' + branch], signal);
@@ -96,14 +98,18 @@ export async function openWorkspaces({ cwd, directory, defaultBranch, remote = '
     if (!inside(path, workingDirectory)) throw new Error('Project subdirectory escapes its worktree');
     if (record.state !== 'ready') { record.state = 'ready'; await save(recordPath, record); }
     log('workspace.ready', { sessionId, status: reused ? 'reused' : 'created' });
-    return { cwd: workingDirectory, path, branch, baseBranch: record.baseBranch, baseCommit: record.baseCommit };
+    return { cwd: workingDirectory, path, branch, baseBranch: record.baseBranch, baseCommit: record.baseCommit, repositoryRoot: root };
+  }
+  function enqueue(sessionId, signal, create) {
+    const next = tail.then(() => prepare(sessionId, signal, create));
+    tail = next.catch(error => { log('workspace.failed', { sessionId, errorType: error.constructor?.name ?? 'Error' }); });
+    return next;
   }
   return {
+    existing(sessionId, signal) { return enqueue(sessionId, signal, false); },
     forSession(sessionId, signal) {
       // Serialize only Git preparation. Model/tool execution remains concurrent.
-      const next = tail.then(() => prepare(sessionId, signal));
-      tail = next.catch(error => { log('workspace.failed', { sessionId, errorType: error.constructor?.name ?? 'Error' }); });
-      return next;
+      return enqueue(sessionId, signal, true);
     }
   };
 }

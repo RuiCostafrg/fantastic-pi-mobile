@@ -105,7 +105,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
             }
         }
     }
-    fun menu(anchor: View, session: ChatSession, includeSettings: Boolean = false, workspaceInfo: (() -> Unit)? = null) {
+    fun menu(anchor: View, session: ChatSession, includeSettings: Boolean = false, changes: (() -> Unit)? = null, workspaceInfo: (() -> Unit)? = null) {
         PopupMenu(context, anchor).apply {
             menu.add("Rename chat").setOnMenuItemClickListener { rename(session); true }
             menu.add(if (session.pinned) "Unpin chat" else "Pin chat").setOnMenuItemClickListener { pin(session); true }
@@ -115,6 +115,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
                 menu.add(if (session.finished) "Reopen chat" else "Mark finished").setOnMenuItemClickListener { finish(session, !session.finished); true }
                 if (session.finished) menu.add("Archive chat").setOnMenuItemClickListener { archive(session, true); true }
             }
+            if (changes != null) menu.add("Changes").setOnMenuItemClickListener { changes(); true }
             if (workspaceInfo != null) menu.add("Workspace details").setOnMenuItemClickListener { workspaceInfo(); true }
             if (includeSettings) menu.add("Settings").setOnMenuItemClickListener { settings(); true }
         }.show()

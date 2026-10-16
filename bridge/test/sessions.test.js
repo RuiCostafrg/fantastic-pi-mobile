@@ -104,7 +104,7 @@ test('HTTP session validation and backward-compatible legacy conversation', () =
     ...(body ? { method: 'POST', body: JSON.stringify(body) } : {})
   });
   try {
-    assert.equal((await (await request('/health')).json()).protocolVersion, 3);
+    assert.equal((await (await request('/health')).json()).protocolVersion, 4);
     for (const sessionId of ['', '../pocket', 'a'.repeat(81), 4, null]) {
       assert.equal((await request('/v1/jobs', { requestId: 'invalid-session', text: 'hi', sessionId })).status, 400);
     }

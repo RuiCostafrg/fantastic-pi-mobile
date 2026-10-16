@@ -95,6 +95,7 @@ class MainActivity : Activity() {
         titles.addView(textLabel("PI POCKET", 10f, true).apply { letterSpacing = 0.16f })
         title = textLabel("", 20f).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END; setTypeface(typeface, Typeface.BOLD) }
         titles.addView(title); header.addView(titles, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(actionButton("Δ", "Review changes") { openChanges() }, LinearLayout.LayoutParams(dp(44), dp(48)))
         header.addView(actionButton("＋", "New chat") { newChat() }, LinearLayout.LayoutParams(dp(48), dp(48)))
         val more = actionButton("⋮", "Chat menu") {}
         more.setOnClickListener { showMenu(more) }
@@ -195,7 +196,11 @@ class MainActivity : Activity() {
     }
     private fun showMenu(anchor: View) {
         val session = history.session(selectedId) ?: return
-        navigation.menu(anchor, session, includeSettings = true) { showWorkspace(session) }
+        navigation.menu(anchor, session, includeSettings = true, changes = { openChanges() }) { showWorkspace(session) }
+    }
+    private fun openChanges() {
+        saveDraft(); hideKeyboard()
+        startActivity(Intent(this, ChangesActivity::class.java).putExtra("sessionId", selectedId))
     }
     private fun showWorkspace(session: ChatSession) {
         modalOpen = true
@@ -306,7 +311,7 @@ class MainActivity : Activity() {
                 } catch (error: Exception) {
                     val rejected = job.status == "sending" && error is BridgeException && error.code in listOf(400, 409, 426)
                     if (rejected) history.update(job.id, "rejected", error.message ?: "Request rejected")
-                    else history.problem(job.id, if (error is BridgeException && error.code == 429) "All parallel slots are busy. Waiting and retrying with the same request ID." else "Not updated: ${error.message ?: "Connection error"}. Retrying this request ID.")
+                    else history.problem(job.id, if (error is BridgeException && error.code == 429) "${error.message ?: "Bridge is busy"} Waiting and retrying with the same request ID." else "Not updated: ${error.message ?: "Connection error"}. Retrying this request ID.")
                 } finally {
                     handler.post { polling.remove(job.id); if (!isDestroyed && visible) render() }
                 }
