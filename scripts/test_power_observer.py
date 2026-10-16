@@ -6,6 +6,7 @@ import subprocess
 import shlex
 import shutil
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 from power_observer import MONITOR_SCRIPT, ObservationUnavailable, PowerEvidence, SharedPowerObserver
@@ -71,6 +72,21 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaises(ObservationUnavailable):
             self.reader.read()
 
+    def test_finished_sampler_cannot_report_fresh_power_evidence(self):
+        private = Path(self.temporary.name) / 'private'
+        private.mkdir()
+        observer = SharedPowerObserver('synthetic-device', private,
+            shared_parent=Path(self.temporary.name), clock=lambda: self.now)
+        observer.shared.mkdir()
+        observer.samples.write_text('100.0\tAwake\t1\n')
+        self.assertEqual(observer.read(), (False, True))
+        (observer.shared / 'done').write_text('done\n')
+        (observer.shared / 'exit-reason').write_text('signal-term\n')
+        with self.assertRaisesRegex(ObservationUnavailable, 'sampler stopped.*signal-term'):
+            observer.read()
+        self.assertTrue(observer.close())
+        self.assertEqual((private / 'power-exit-reason.txt').read_text(), 'signal-term\n')
+
     def test_transport_loss_after_start_does_not_call_adb_again(self):
         private = Path(self.temporary.name) / 'private'
         private.mkdir()
@@ -121,6 +137,36 @@ class EvidenceTests(unittest.TestCase):
         subprocess.run(['bash', str(path), str(directory), '5'], check=True, capture_output=True, text=True, timeout=8)
         evidence = PowerEvidence(directory / 'samples.tsv', lambda: 100.0)
         self.assertEqual(evidence.read(), (False, True))
+        self.assertEqual((directory / 'exit-reason').read_text(), 'stop-requested\n')
+        self.assertTrue((directory / 'done').exists())
+        self.assertFalse(path.exists())
+
+    def test_real_sampler_signal_records_exit_instead_of_silent_disappearance(self):
+        directory = Path(self.temporary.name)
+        mock_dump = directory / 'dumpsys'
+        mock_dump.write_text('#!/bin/sh\nprintf "  mWakefulness=Awake\\n"\n')
+        mock_dump.chmod(0o700)
+        script = MONITOR_SCRIPT.replace('/system/bin/dumpsys', str(mock_dump)).replace(
+            '/system/bin/awk', shutil.which('awk')).replace('/system/bin/sleep', shutil.which('sleep'))
+        path = directory / 'monitor.sh'
+        path.write_text(script)
+        process = subprocess.Popen(['bash', str(path), str(directory), '20'],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            deadline = time.monotonic() + 5
+            while not (directory / 'samples.tsv').exists():
+                self.assertIsNone(process.poll(), 'Sampler exited before first sample')
+                self.assertLess(time.monotonic(), deadline, 'Sampler did not start')
+                time.sleep(.02)
+            process.terminate()
+            self.assertEqual(process.wait(timeout=5), 143)
+            self.assertEqual((directory / 'exit-reason').read_text(), 'signal-term\n')
+            self.assertTrue((directory / 'done').exists())
+            self.assertFalse(path.exists())
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
 
     def test_final_report_keeps_observation_metrics_without_reusing_old_file(self):
         spec = importlib.util.spec_from_file_location('fixture', Path(__file__).with_name('check-bridge-work.py'))

@@ -82,9 +82,20 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const server = makeServer(store, token);
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
-  server.listen(Number(process.env.PORT ?? 8787), '127.0.0.1', () => console.log('Pi Pocket bridge listening on localhost'));
+  server.listen(Number(process.env.PORT ?? 8787), '127.0.0.1', () => log('bridge.listening', { pid: process.pid }));
   let closing = false;
-  const shutdown = async () => { if (closing) return; closing = true; server.close(); await store.close(); server.closeAllConnections(); };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  const shutdown = async signal => {
+    if (closing) return;
+    closing = true;
+    // Metadata only. Absence of these events is not proof of SIGKILL, Android
+    // process eviction or any other specific cause; whole-process loss can
+    // prevent JavaScript from logging at all.
+    log('bridge.shutdown', { pid: process.pid, status: signal });
+    server.close();
+    await store.close();
+    server.closeAllConnections();
+    log('bridge.closed', { pid: process.pid });
+  };
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }

@@ -83,13 +83,24 @@ class PowerEvidence:
 MONITOR_SCRIPT = r'''#!/system/bin/sh
 out=$1
 seconds=$2
-trap 'rm -f "$0"' EXIT
+reason=unexpected-exit
+finish() {
+  printf '%s\n' "$reason" > "$out/exit-reason"
+  printf 'done\n' > "$out/done"
+  rm -f "$0"
+}
+trap finish EXIT
+trap 'reason=signal-hup; exit 129' HUP
+trap 'reason=signal-int; exit 130' INT
+trap 'reason=signal-term; exit 143' TERM
 read up ignored < /proc/uptime
 start=${up%.*}
 count=0
-while [ ! -e "$out/stop" ] && [ "$count" -lt 600 ]; do
+while :; do
+  if [ -e "$out/stop" ]; then reason=stop-requested; break; fi
+  if [ "$count" -ge 600 ]; then reason=sample-limit; break; fi
   read up ignored < /proc/uptime
-  [ "$(( ${up%.*} - start ))" -lt "$seconds" ] || break
+  if [ "$(( ${up%.*} - start ))" -ge "$seconds" ]; then reason=deadline; break; fi
   # Stream the dump: Android's external printf cannot accept a >128 KiB
   # single argument. Never buffer the entire power log in a shell argument.
   /system/bin/dumpsys -t 3 power 2>/dev/null | /system/bin/awk '
@@ -97,12 +108,16 @@ while [ ! -e "$out/stop" ] && [ "$count" -lt 600 ]; do
     /^[[:space:]]*mWakefulness=/ { split($0, a, "="); state=a[2]; gsub(/[[:space:]]/, "", state) }
     /PARTIAL_WAKE_LOCK/ && /com[.]termux[.]app[.]TermuxService/ { held=1 }
     END { getline up < "/proc/uptime"; split(up, t, " "); printf "%s\t%s\t%s\n", t[1], state, held }
-  ' >> "$out/samples.tsv" || break
+  ' >> "$out/samples.tsv" || { reason=sample-write-failed; break; }
   count=$((count + 1))
-  /system/bin/sleep 1
+  /system/bin/sleep 1 || { reason=sleep-failed; break; }
 done
-printf 'done\n' > "$out/done"
 '''
+
+
+EXIT_REASONS = frozenset({'stop-requested', 'sample-limit', 'deadline',
+    'sample-write-failed', 'sleep-failed', 'unexpected-exit',
+    'signal-hup', 'signal-int', 'signal-term'})
 
 
 class SharedPowerObserver:
@@ -146,6 +161,16 @@ class SharedPowerObserver:
         raise ObservationUnavailable('Detached sampler did not produce readable same-phone evidence')
 
     def read(self):
+        # Fresh final rows do not prove a sampler is still observing. Never
+        # accept a known-completed trace as current screen-off evidence.
+        if (self.shared / 'done').exists():
+            try:
+                reason = (self.shared / 'exit-reason').read_text().strip()
+            except OSError:
+                reason = 'unknown'
+            if reason not in EXIT_REASONS:
+                reason = 'unknown'
+            raise ObservationUnavailable('Device sampler stopped (' + reason + ')')
         return self.evidence.read()
 
     def begin(self):
@@ -162,6 +187,15 @@ class SharedPowerObserver:
             shutil.copyfile(self.samples, self.private / 'power-samples.tsv')
             (self.private / 'power-samples.tsv').chmod(0o600)
         if (self.shared / 'done').exists():
+            # Fixed-size/allowlisted diagnostic metadata only; never archive
+            # arbitrary remote contents as an explanation.
+            try:
+                reason = (self.shared / 'exit-reason').read_text().strip()
+            except OSError:
+                reason = 'unknown'
+            destination = self.private / 'power-exit-reason.txt'
+            destination.write_text((reason if reason in EXIT_REASONS else 'unknown') + '\n')
+            destination.chmod(0o600)
             shutil.rmtree(self.shared)
             return True
         # Do not remove a directory while an uncertain sampler may still write.

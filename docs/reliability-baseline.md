@@ -25,13 +25,31 @@ Implementation: `RequestObservations.kt`, `MainActivity.kt`, `SessionDrawer.kt`.
 - Installed normal app **0.6.1 / versionCode 7**, launched with pi-droid and observed the preserved blank chat, Ready status and paired Send control. No live request was submitted. Before/after private backups compared exact logical jobs/sessions/drafts plus selected-chat and encrypted-pairing preferences: unchanged. The app had zero saved active requests before upgrade. Backups are ignored under `bridge/data/pre-reliability-backup/`.
 - The original bridge was **not restarted**; authenticated health still reported protocol v4/eight slots. No microphone, keyboard, font, battery, network or security setting was changed. The two isolated test packages were uninstalled afterward to avoid duplicate launcher entries.
 
+## Scoped repository-action restart — passed (2026-10-16 21:29 UTC)
+
+User explicitly approved `scripts/check-reliability.py --scenario review-restart`. Verified the existing isolated APK/test APK identities, installed only those packages, and used a disposable repository/fixture bridge. The actual shell command wrote `dispatch` once before sleeping; the harness waited for that marker before gracefully closing/reopening the fixture. After restart the operation was `interrupted`; retrying the exact same confirmed operation ID returned that interruption and left the marker at **one entry**. No new model RPC launch occurred after restart. Final Android instrumentation verified saved state, IDs, selected chat, draft and pairing. No app/harness code change was needed.
+
+Production comparison before reopening normal Pocket: all five app database/preferences files byte-identical and all **17** exact task records unchanged (17 was the fresh pre-test baseline, not the older 16). Same production PID16072, protocol v4/eight slots, admissions open and zero active work. Both isolated packages uninstalled; normal Pocket foreground verified. Secure wireless ADB rediscovered/reconnected on its current port without re-pairing; no network/IME/security/battery settings changed. Private evidence: ignored `bridge/data/review-restart-lifecycle-20261016T212920Z/`, including scenario output and before/after comparisons.
+
+Scope: a real shell-dispatch marker and exact-ID non-replay across a **graceful fixture restart**, not abrupt SIGKILL, whole-Termux loss, real-provider recovery or the complete lifecycle matrix. No production restart or new production request occurred.
+
+## Scoped offline lifecycle rerun — passed (2026-10-16 21:11 UTC)
+
+With explicit user agreement, rebuilt the separate `dev.pipocket.reliability` and `.test` APKs using `-PreliabilityTests=true`; `assembleDebug assembleDebugAndroidTest lintDebug` passed. Verified both APK identities before installing. Build log: `~/.local/android-sdk/pocket-offline-fixture-build.log`.
+
+`python scripts/check-reliability.py --serial <current-authorized-serial> --scenario offline` **passed** with the revised app-only observation setup. Actual fixture APK preserved saved running/pending records, exact IDs, selected chat, unsent draft and pairing across the local HTTP listener outage; afterward completion/reconnection preserved the parallel job and did not duplicate either RPC launch. This is one passing scoped rerun, not proof the whole matrix is deterministic or that provider internet loss works. Freshness/dialog visibility remains separately covered by LiveStatusUiTest, not inferred from persisted history.
+
+Before restoring the normal app, compared private before/after app archives: all five production database/preferences files byte-identical, all 16 exact bridge task records unchanged. Production retained PID16072/protocol v4/eight slots, admissions open and zero active work. Both isolated packages were uninstalled; normal Pocket reopened to its existing screen-off test chat and DONE results. No production restart/job submission, microphone, IME, lock, battery or network setting change. Preflight's inactive ADBKeyboard warning was irrelevant because no typing was needed; Gboard stayed active. Private artifacts: ignored `bridge/data/offline-lifecycle-20261016T211120Z/`.
+
+Still pending after the scoped offline and review-restart passes: revised full matrix, independent screen-off evidence, abrupt process loss, provider network loss and longer/stress scenarios. Do not run another visible lifecycle scenario without agreement.
+
 ## Lifecycle matrix: evidence and limitations
 
 The earlier baseline had two complete phone runs passing background completion, app force-stop/relaunch, listener offline/online, graceful bridge restart with parallel jobs/pending approval, and repository-action restart. These used real Durable storage/worktrees and a deterministic fake Pi child, not provider inference.
 
 A later run with stronger setup assertions passed background and force-stop, then failed offline: local history still said `queued` while the test expected `running`. Server dispatch is not proof that the app has received a running status. The harness now waits for repeated app-only GET observations; Python readiness uses the fixture's stdin protocol so it cannot accidentally satisfy the app-observation condition. **The revised full lifecycle matrix has not been rerun**; do not call it deterministic or fully green on 0.6.1. The obsolete assertion that a connection error is persisted in progress was removed: freshness is now intentionally ephemeral and checked by the dedicated UI test instead.
 
-The enhanced repository-action case waits for a real shell dispatch marker, restarts the fixture and checks that same-operation-ID retry does not append it again. **This enhancement has not yet run.** Existing bridge repository-action non-replay tests still pass.
+The enhanced repository-action case waits for a real shell dispatch marker, restarts the fixture and checks that same-operation-ID retry does not append it again. **This enhancement passed in the scoped 21:29 UTC rerun above.** The full matrix remains incomplete. Existing bridge repository-action non-replay tests still pass.
 
 Secure pattern lock was detected, so lock/unlock was skipped; no credential or security setting was changed. Abrupt Termux/process death, Doze/battery pressure, provider-internet loss, real-provider lifecycle work, notification delivery and foreground-service behavior remain unverified. Listener loss tests specifically local HTTP reachability, not provider connectivity. A graceful fixture restart is not a force-kill test.
 

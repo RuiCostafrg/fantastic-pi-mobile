@@ -2,6 +2,32 @@
 
 Updated: 2026-10-16
 
+## Scoped repository-action restart — passed, 2026-10-16 21:29 UTC
+
+- User explicitly authorized the next review-restart scenario. Verified isolated APK identities, installed only fixture packages and ran `scripts/check-reliability.py --scenario review-restart`: **PASS**. A real shell wrote one dispatch marker; after graceful fixture close/reopen, the same operation ID returned interrupted and did not append a second entry. No new RPC dispatch after restart. Final fixture instrumentation verified state/IDs/selection/draft/pairing. No app/harness fix needed.
+- All **five production app database/preferences files byte-identical**, all **17 exact production task records unchanged** (fresh baseline was already 17), same live bridge PID16072/protocol v4/eight slots/admissions open/idle. Normal bridge never restarted and no production request submitted.
+- Removed both fixture packages and reopened normal Pocket; foreground verified. Authorized secure wireless ADB auto-reconnected on its current port; no re-pairing, IME, lock, battery or network setting changes. Private scenario output/comparison artifacts under ignored `bridge/data/review-restart-lifecycle-20261016T212920Z/`.
+- This completes the enhanced scoped review-restart check, not the full matrix or abrupt process/Termux death. Older pending-review-restart notes below are historical. Remaining: revised full matrix, independent Asleep evidence, abrupt-loss/provider-network and longer/stress scenarios; notifications still unimplemented. Changes remain uncommitted/unpushed.
+
+## Scoped Android offline lifecycle rerun — passed, 2026-10-16 21:11 UTC
+
+- User explicitly approved the isolated offline/reconnect scenario. Rebuilt fixture APK/test APK with `-PreliabilityTests=true`; assemble/test-assemble/lint succeeded. Verified isolated package identities before installation; normal APK was not replaced.
+- Revised `scripts/check-reliability.py --scenario offline` **PASS** on actual Android: saved state, stable IDs, pending approval, parallel job, selected chat, draft, pairing and no duplicate RPC dispatch through listener offline/online. No application/harness fix was necessary for this scoped rerun.
+- Private before/after comparison: **five production app database/preferences files byte-identical and all 16 exact production task records unchanged**. Live bridge retained PID16072/eight slots/zero active work; no restart or model request. Both fixture packages removed; normal dev.pipocket reopened to original Screen-off reliability test chat with DONE markers.
+- No microphone/IME/security/network/battery changes. Gboard remained active; preflight ADBKeyboard warning was irrelevant. Private evidence: ignored `bridge/data/offline-lifecycle-20261016T211120Z/`; build log `~/.local/android-sdk/pocket-offline-fixture-build.log`.
+- This completes the scoped offline rerun, not the full lifecycle matrix, enhanced review-restart, provider-internet loss or background survival. Next agree the review-restart scenario; no new screen-off test armed. This and the diagnostics increment remain uncommitted/unpushed.
+
+## Reliability diagnostics increment — 2026-10-16 20:05 UTC
+
+- Kept production running without restart or new requests. Read-only checks verified PID16072/protocol v4/eight slots, zero active jobs/reviews and 16 terminal tasks. Existing shared tmux wake-lock hooks unchanged. Authorized ADB was available; no pairing/network/security changes.
+- Historical log inspection had no usable bridge-exit event. The earlier unexplained bridge exit and sampler disappearance **remain undiagnosed**; no attribution to Android, screen-off or ADB lifecycle is justified.
+- Real awake probes: sampler advanced about 11 and 15.5 seconds after launch-client exit with no subsequent ADB sampling, showing Awake and held Termux wake lock. Both stopped/cleaned successfully. This is not physical screen-off or adbd-restart survival evidence.
+- Reproduced and fixed a narrower evidence bug: a known-completed sampler could still return its last fresh power row. `SharedPowerObserver.read()` now refuses a done marker immediately. The bounded shell sampler records allowlisted exit reasons (requested stop/deadline/sample limit, catchable signals and write/sleep failures); close archives only the allowlisted reason privately. SIGKILL/process-tree loss can still leave no reason/marker.
+- Added deterministic regressions plus actual Android-shell TERM probe against only the uniquely identified disposable sampler. Initial process-name matching failed closed with no signal; corrected basename matching and remote exact-script-argument recheck then proved signal-term metadata, live-evidence rejection and confirmed cleanup. Private metadata under ignored `bridge/data/observer-awake-diagnosis-*` and `observer-signal-probe-*`.
+- Added metadata-only `bridge.listening`, `bridge.shutdown` (SIGINT/SIGTERM) and `bridge.closed` events, tested against the real isolated server via the tmux harness. No secrets/config/prompts/raw errors logged. **Source change only:** production was not restarted to activate these events. Missing events do not establish a particular crash cause.
+- Validation: **46/46 bridge tests**, **10/10 observer regressions**, isolated real-tmux lifecycle/backup/restart/non-replay **PASS**, diff checks clean. Both new diagnostic assertions were seen failing before their fixes. No full Android lifecycle matrix or new screen-off scenario run. No commit/push for this increment yet.
+- Next: one announced/agreed isolated APK lifecycle scenario, starting with the previously failing offline case; enhanced review-restart next. Further independent screen-off measurement still needs agreement and must not be represented as fixed by these diagnostics. Notifications remain unimplemented.
+
 ## Explicit bridge recovery — 2026-10-16 19:57 UTC
 
 - User authorized recovery and then commit/push. Fresh checks found no bridge/controller/RPC process, no configured-port listener, no owner lock and all 16 persisted tasks terminal. Existing work pane was preserved.

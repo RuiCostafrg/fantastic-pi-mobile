@@ -63,6 +63,12 @@ After a successful graceful stop the dedicated pane remains dead. `start` refuse
 
 If Android kills Termux, the phone reboots, or the server crashes: reopen Termux, inspect the bridge owner and possible surviving Pi/test/external children, and inspect uncertain job/action IDs and Git/device side effects. A stale lock blocks automatic start. There is **no automatic stale-lock cleanup**; remove a lock manually only after proving no owner/child remains and accounting for interrupted external work. Preserve databases and worktrees. Do not restore an old database over live work or resend uncertain actions with new IDs. Recreate/attach `work` deliberately if Android removed the tmux server; its existing hooks manage the shared wake lock. This workflow never calls wake-unlock.
 
+## Lifecycle diagnostics
+
+Server source records metadata-only `bridge.listening`, `bridge.shutdown` and `bridge.closed` events in the private bridge log. Shutdown records SIGINT/SIGTERM, without request content, configuration or raw errors. `bridge.closed` means store close completed; it is not a guarantee every external side effect finished. These events apply on the next deliberate launch of the updated source, not to an already-running older process. They do not add a supervisor or automatic restart. SIGKILL, Android/Termux process-tree loss and logging failure can leave no final event; absence is not a diagnosis.
+
+The sampler records an allowlisted `exit-reason` before its done marker for normal completion and catchable HUP/INT/TERM signals. A known-completed sampler is never accepted as current evidence, even if its last sample is fresh. Confirmed cleanup privately archives `power-exit-reason.txt` beside `power-samples.tsv`; unknown strings are redacted to `unknown`. Abrupt process loss may leave no marker. Awake and fixture-only TERM probes passed; the earlier physical disappearance remains unresolved, not repaired by this diagnostic increment.
+
 ## Later pi-droid migration
 
 The current implementation mixes pi-droid tools with local host/ADB scripts. [pi-droid-migration-handoff.md](pi-droid-migration-handoff.md) inventories the source, extraction boundaries, test evidence and safety requirements for a later migration. That migration is not implemented and does not replace the current reliability acceptance work.

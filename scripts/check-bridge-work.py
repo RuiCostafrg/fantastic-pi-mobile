@@ -203,6 +203,24 @@ def main(options):
             stopped = json.loads(run_ok('status').stdout)
             assert stopped['state'] == 'unavailable' and not stopped['ready']
             assert stopped['reason'] == 'storage-lock-missing' and stopped['storage'] is None
+            # Observe the real fixture's lifecycle, not a mocked logger. Lock
+            # release can precede the final event, so wait for the log boundary.
+            def lifecycle():
+                events = []
+                for line in (checkout / 'bridge/data/bridge.log').read_text().splitlines():
+                    try:
+                        entry = json.loads(line)
+                    except ValueError:
+                        continue
+                    if entry.get('event', '').startswith('bridge.'):
+                        events.append(entry)
+                return events
+            until(lambda: any(e['event'] == 'bridge.closed' for e in lifecycle()))
+            events = lifecycle()
+            assert [e['event'] for e in events] == ['bridge.listening', 'bridge.shutdown', 'bridge.closed']
+            assert all(e['pid'] == owner_pid for e in events)
+            assert events[1]['status'] == 'SIGTERM'
+            assert token not in json.dumps(events)
             backups = list((checkout / 'bridge/data/maintenance-backups').iterdir())
             assert len(backups) == 1 and (backups[0] / 'assistant.sqlite').exists()
             tmux('kill-window', '-t', 'work:pocket-bridge')  # Only the disposable exited window.
