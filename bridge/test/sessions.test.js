@@ -4,7 +4,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { once } from 'node:events';
-import { openStore } from '../src/store.js';
+import { openStore as realOpenStore } from '../src/store.js';
+// Protocol tests use a workspace adapter; worktrees.test.js exercises real Git.
+const openStore = options => realOpenStore({ ...options, workspaces: { forSession: async () => ({ cwd: process.cwd() }) } });
 import { runPi } from '../src/rpc.js';
 import { makeServer } from '../src/server.js';
 
@@ -102,7 +104,7 @@ test('HTTP session validation and backward-compatible legacy conversation', () =
     ...(body ? { method: 'POST', body: JSON.stringify(body) } : {})
   });
   try {
-    assert.equal((await (await request('/health')).json()).protocolVersion, 2);
+    assert.equal((await (await request('/health')).json()).protocolVersion, 3);
     for (const sessionId of ['', '../pocket', 'a'.repeat(81), 4, null]) {
       assert.equal((await request('/v1/jobs', { requestId: 'invalid-session', text: 'hi', sessionId })).status, 400);
     }

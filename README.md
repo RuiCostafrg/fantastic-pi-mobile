@@ -29,7 +29,8 @@ The app uses Android's built-in SQLite API (no hosted database). Pi Durable comm
 - Independent persistent Pi conversations, code editing, and installed Pi extension discovery.
 - Slide-out chat drawer with New chat, title search, lifecycle sections, rename, pins, and running/approval badges.
 - Explicit user-finished tasks, reversible archiving, and a separate searchable archive view.
-- Per-chat drafts, transcripts, approvals, and Stop; up to three chats can work simultaneously by default.
+- Per-chat drafts, transcripts, approvals, and Stop; up to eight chats can work simultaneously by default (configurable 1–32).
+- A persistent Git worktree and dedicated branch per chat, based on the current default branch.
 - Extension confirmation, selection, input, and editor dialogs.
 - Tool progress, completed assistant messages, cancellation, and connection errors.
 - Stable client request IDs: reconnecting after a lost HTTP response does not create a second job.
@@ -60,13 +61,13 @@ git commit -m "Enable Android and bridge CI"
 git push
 ```
 
-**Verification so far (2026-10-16):** all 11 bridge/diagnostics/session tests and 9 Android instrumentation tests pass. `assembleDebug assembleDebugAndroidTest lintDebug` passes locally in Termux. On-device tests cover preserved legacy history/pairing, drawer create/switch/rename/pin/search, independent drafts, simultaneous real Pi requests, scoped cancellation, and per-chat context recall. Earlier tests also exercised pi-droid's read-only `android_screen_state` and the unpaired-state regression. Voice input, extension dialogs on-device, and background-process survival remain unverified. See [PROGRESS.md](PROGRESS.md) for the local build workaround and test results.
+**Verification so far (2026-10-16):** all 18 bridge/diagnostics/session/worktree tests and 9 Android instrumentation tests pass. `assembleDebug assembleDebugAndroidTest lintDebug` passes locally in Termux. On-device tests cover preserved legacy history/pairing, drawer create/switch/rename/pin/search, independent drafts, simultaneous real Pi requests, scoped cancellation, and per-chat context recall. Earlier tests also exercised pi-droid's read-only `android_screen_state` and the unpaired-state regression. Voice input, extension dialogs on-device, and background-process survival remain unverified. See [PROGRESS.md](PROGRESS.md) for the local build workaround and test results.
 
 The app targets Android 15 and supports Android 8+ (API 26). The bridge is intended to run in Termux on the same physical device. This checkout does not contain an Android SDK/JDK; the tested Termux environment uses separately installed tools and a locally rebuilt ARM-native AAPT2 (see [PROGRESS.md](PROGRESS.md)).
 
 ## 2. Run the bridge in Termux
 
-Requirements: Node **22.19+** with `node:sqlite` support (Node 24 recommended), Git, and your already-installed, authenticated Pi CLI.
+Requirements: Node **22.19+** with `node:sqlite` support (Node 24 recommended), Git with worktree support, a committed Git repository, and your already-installed, authenticated Pi CLI. Non-Git directories are rejected rather than silently sharing a checkout.
 
 First make sure your Pi can run from your chosen project:
 
@@ -138,9 +139,19 @@ Use **⋮ → Archive chat** on a finished chat to remove it from the main sideb
 
 Each chat has its own model conversation: a new chat does not automatically receive another chat's messages. Renaming a chat does not reset its context. Existing pre-upgrade history stays in **Main chat**.
 
-**Separate contexts are not separate sandboxes.** All chats share `PI_WORKSPACE`, provider configuration, installed tools, and the same physical phone. Avoid asking different chats to edit the same files or operate the phone simultaneously. A tool can read shared files, including history if permissions allow; this is not a security boundary.
+### Isolated coding worktrees
 
-The bridge admits one active request per chat and three across chats by default. Configure `PI_MAX_CONCURRENT=1` through `8` in `.env` to adjust this. Additional app requests wait/retry with their original IDs. Keep Termux alive; this feature does not add an Android foreground service. There is no chat deletion/export UI yet.
+On its **first request**, each chat (including old chats after upgrade) gets a dedicated Git worktree and `pocket/<repo-key>/<chat-key>` branch. The bridge launches Pi **inside that worktree**. Later messages, reopen, restore and bridge restarts reuse it without resetting/rebasing, preserving commits and uncommitted edits.
+
+By default, a new worktree discovers the configured remote's current default branch (`PI_GIT_REMOTE=origin`), fetches its latest tip, and starts a new branch there. The original checkout may be on another branch or dirty: neither is copied or modified. Git/network/setup failures fail the request; there is **no fallback to the shared checkout**. Existing worktrees need no fetch to continue.
+
+For an offline/local-only repository, explicitly set `PI_DEFAULT_BRANCH=main` (or your actual local default branch). This selects the current committed **local** tip instead of discovering/fetching a remote. Uncommitted/ignored files, `.env`, installed dependencies, build outputs and untracked project-local extensions are **not copied**. Install dependencies separately in a worktree as needed. Global Pi extensions/settings remain available; project resources must be committed and trusted at their new location, or configured via trusted absolute `PI_ARGS` paths.
+
+Worktrees and private identity/base manifests live under `bridge/data/worktrees/` by default. Workspace metadata (`cwd`, branch, base branch and base commit) is persisted with each bridge job; open **⋮ → Workspace details** to view/copy it. Finishing/archiving a chat does **not** delete its worktree, commit, merge, or push anything. To integrate work, review its diff and explicitly merge/cherry-pick the branch. Concurrent worktree edits no longer overwrite each other's working files, but merging changes to the same lines can still conflict. Do not remove/prune worktrees while the bridge is using them; missing or manually switched worktrees fail closed rather than being reset.
+
+**Worktrees are not security sandboxes.** Git objects/configuration/remotes, provider credentials, tools and the physical phone remain shared. A tool can explicitly access other checkouts or private history if filesystem permissions allow; a workspace instruction discourages this but cannot enforce an OS boundary. Concurrent device actions, shared services/ports and Git-wide operations can still conflict.
+
+The bridge admits one active request per chat and **eight** across chats by default. Configure `PI_MAX_CONCURRENT=1` through `32` in `.env` and restart the idle bridge to adjust this. This limits **active requests**, not the number of saved chats/worktrees. Higher limits consume more RAM/CPU, provider quota and money; the former limit of three was a conservative phone default, not a Pi limit. Additional app requests wait/retry with their original IDs. Keep Termux alive; this feature does not add an Android foreground service. There is no chat deletion/export UI yet.
 
 Research and design rationale: [docs/session-navigation-research.md](docs/session-navigation-research.md).
 
@@ -154,7 +165,7 @@ Optional `PI_ARGS` in `.env` is a JSON array of additional CLI flags, for exampl
 
 ## Durability and safety
 
-- One active job per chat, with a bounded number of parallel chats and one shared configured workspace. Requests in the same chat reuse only that chat's Pi conversation.
+- One active job per chat, with bounded parallelism and a separate persistent Git worktree/branch per chat. Requests in the same chat reuse only that chat's Pi conversation and checkout.
 - HTTP acceptance means persisted/queued, **not completed**.
 - If an app request loses its response, it retries the **same UUID and text**.
 - A job not yet dispatched can resume after a bridge restart.
@@ -216,7 +227,7 @@ Every route requires `Authorization: Bearer <token>`.
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/health` | Authenticated liveness, `protocolVersion: 2`, `maxConcurrent` |
+| GET | `/health` | Authenticated liveness, `protocolVersion: 3`, `worktreeIsolation: true`, `maxConcurrent` |
 | POST | `/v1/jobs` | Submit `{requestId, text, sessionId}`; returns persisted job. Omitting `sessionId` uses legacy `pocket` |
 | GET | `/v1/jobs/:id` | Poll status, answer, tool progress, pending dialog |
 | POST | `/v1/jobs/:id/ui` | Respond with matching dialog `id` and `confirmed`, `value`, or `cancelled` |
@@ -228,7 +239,7 @@ Statuses: `queued`, `running`, `done`, `failed`, `cancelled`, `interrupted`. The
 
 - On-device end-to-end coverage with actual voice and pi-droid actions.
 - Streaming committed partial output, screenshot attachments, and optional text-to-speech.
-- Per-chat projects/workspaces, full-text history search, and data deletion/export.
+- Multi-repository selection, worktree review/merge/cleanup UI, full-text history search, and data deletion/export.
 - A foreground-service integration and clearer per-action approval policies.
 - Release signing and installable GitHub Releases.
 

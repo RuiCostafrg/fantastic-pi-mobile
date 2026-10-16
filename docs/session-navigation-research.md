@@ -27,6 +27,12 @@ The user requested new chats first, attention/reply-ready tasks second, muted wo
 
 Model completion and user completion are intentionally distinct. A `done` request belongs in Needs attention until the user marks the conversation finished. Approvals outrank running work; failures/stops remain visible for review. A new message reopens a finished task. Archive is only available for user-finished, inactive chats, hides them from the main list, and preserves history/context with a restore action. Archived chats are read-only until restored. These local organization flags do not cancel/delete bridge jobs or establish a security boundary.
 
+## Follow-up: isolated coding checkouts (0.4.0)
+
+The user subsequently requested a worktree per session to prevent simultaneous edits overwriting one another. The original shared-working-files decision above is superseded: each chat now gets a persistent Git worktree/branch on first execution. New worktrees use the freshly fetched remote default branch; explicit local default-branch configuration enables offline use. Existing trees are never automatically rebased/reset or deleted on archive. Git metadata, phone actions and provider resources remain shared; this is not sandboxing and eventual merges can still conflict.
+
+The concurrency default is now eight active chats, configurable from one to 32. Saved chats are not limited by this cap. Git preparation is serialized independently of concurrent Pi execution, and any preparation error fails closed rather than running in the original checkout.
+
 ## Verification plan
 
 - Bridge integration tests: actual concurrent fake-RPC children, separate session flags, per-chat single-flight admission, global cap, idempotency/session conflicts, approval and cancellation isolation, legacy defaults, persistence/restart non-replay.

@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { openStore, validSessionId } from './store.js';
+import { openStore, validSessionId, DEFAULT_MAX_CONCURRENT } from './store.js';
 import { log } from './log.js';
 
 export function makeServer(store, token, logger = log) {
@@ -17,7 +17,7 @@ export function makeServer(store, token, logger = log) {
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return send(401, { error: 'Unauthorized' });
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
-      if (req.method === 'GET' && path === '/health') return send(200, { ok: true, runtime: 'pi-durable', protocolVersion: 2, maxConcurrent: store.maxConcurrent ?? 3 });
+      if (req.method === 'GET' && path === '/health') return send(200, { ok: true, runtime: 'pi-durable', protocolVersion: 3, worktreeIsolation: true, maxConcurrent: store.maxConcurrent ?? DEFAULT_MAX_CONCURRENT });
       let body = {};
       if (req.method === 'POST') {
         const chunks = []; let size = 0;
@@ -61,7 +61,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   if (!process.env.PI_WORKSPACE) throw new Error('Set PI_WORKSPACE to your trusted project directory');
   const extraArgs = JSON.parse(process.env.PI_ARGS ?? '[]');
   if (!Array.isArray(extraArgs) || !extraArgs.every(x => typeof x === 'string')) throw new Error('PI_ARGS must be a JSON string array');
-  const store = await openStore({ directory: resolve(process.env.PI_DATA_DIR ?? 'data'), cwd: resolve(process.env.PI_WORKSPACE), bin: process.env.PI_BIN ?? 'pi', extraArgs, maxConcurrent: Number(process.env.PI_MAX_CONCURRENT ?? 3) });
+  const store = await openStore({ directory: resolve(process.env.PI_DATA_DIR ?? 'data'), cwd: resolve(process.env.PI_WORKSPACE), bin: process.env.PI_BIN ?? 'pi', extraArgs, maxConcurrent: Number(process.env.PI_MAX_CONCURRENT ?? DEFAULT_MAX_CONCURRENT), defaultBranch: process.env.PI_DEFAULT_BRANCH, remote: process.env.PI_GIT_REMOTE ?? 'origin' });
   const server = makeServer(store, token);
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;

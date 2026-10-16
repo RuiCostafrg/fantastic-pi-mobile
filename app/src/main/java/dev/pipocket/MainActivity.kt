@@ -195,7 +195,27 @@ class MainActivity : Activity() {
     }
     private fun showMenu(anchor: View) {
         val session = history.session(selectedId) ?: return
-        navigation.menu(anchor, session, includeSettings = true)
+        navigation.menu(anchor, session, includeSettings = true) { showWorkspace(session) }
+    }
+    private fun showWorkspace(session: ChatSession) {
+        modalOpen = true
+        val details = textLabel("Loading workspace…", 14f).apply {
+            setPadding(dp(20), dp(12), dp(20), dp(12)); setTextIsSelectable(true)
+        }
+        val dialog = AlertDialog.Builder(this).setTitle("${session.title} · Workspace")
+            .setView(ScrollView(this).apply { addView(details) }).setPositiveButton("Close", null).create()
+        dialog.setOnDismissListener { modalOpen = false; maybeShowApproval() }
+        dialog.show()
+        val job = history.jobs(session.id).lastOrNull()
+        if (job == null) { details.text = "A dedicated worktree is created from the default branch when you send the first message."; return }
+        worker.execute {
+            val message = try {
+                val workspace = connection.request("/v1/jobs/${job.id}").optJSONObject("workspace")
+                if (workspace == null) "No worktree recorded yet. New requests prepare a dedicated worktree before Pi runs."
+                else "Directory\n${workspace.optString("cwd")}\n\nBranch\n${workspace.optString("branch")}\n\nStarted from\n${workspace.optString("baseBranch")} @ ${workspace.optString("baseCommit")}\n\nEdits stay here until you explicitly integrate them. Archiving does not remove this worktree. Phone actions and Git history are shared."
+            } catch (_: Exception) { "Workspace details unavailable. Check the saved bridge connection and try again." }
+            handler.post { if (!isDestroyed && dialog.isShowing) details.text = message }
+        }
     }
     private fun renameSession(session: ChatSession) {
         modalOpen = true
@@ -225,7 +245,7 @@ class MainActivity : Activity() {
         draft.isEnabled = !session.archived
         talk.isEnabled = !session.archived
         talk.alpha = if (talk.isEnabled) 1f else 0.35f
-        subtitle.text = if (others > 0) "$others other chats active · shared workspace" else "Independent chat · shared workspace"
+        subtitle.text = if (others > 0) "$others other chats active · own Git worktrees" else "Own Git worktree · shared phone"
         send.text = if (connection.paired) "Send" else "Pair bridge"
         send.isEnabled = !session.archived && (!connection.paired || current == null)
         stop.isEnabled = connection.paired && current != null && current.status != "sending"
@@ -278,7 +298,7 @@ class MainActivity : Activity() {
                 try {
                     val result = if (job.status == "sending") {
                         val health = connection.request("/health")
-                        if (health.optInt("protocolVersion") < 2) throw BridgeException(426, "Update the Termux bridge to support separate chats")
+                        if (health.optInt("protocolVersion") < 3 || !health.optBoolean("worktreeIsolation")) throw BridgeException(426, "Update the Termux bridge for isolated Git worktrees")
                         connection.request("/v1/jobs", JSONObject().put("requestId", job.id).put("text", job.text).put("sessionId", job.sessionId))
                     } else connection.request("/v1/jobs/${job.id}")
                     if (result.optString("sessionId", "pocket") != job.sessionId) throw BridgeException(409, "Bridge returned a different chat; request not applied")
@@ -365,7 +385,7 @@ class MainActivity : Activity() {
                 worker.execute {
                     val message = try {
                         val health = connection.request("/health")
-                        if (health.optInt("protocolVersion") < 2) "Bridge needs an update for multiple chats" else "Bridge connected · up to ${health.optInt("maxConcurrent", 3)} active chats"
+                        if (health.optInt("protocolVersion") < 3 || !health.optBoolean("worktreeIsolation")) "Bridge needs an update for isolated Git worktrees" else "Bridge connected · own Git worktrees · up to ${health.optInt("maxConcurrent", 8)} active chats"
                     } catch (error: Exception) { error.message ?: "Connection error" }
                     handler.post { if (dialog.isShowing && !isDestroyed) Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
                 }

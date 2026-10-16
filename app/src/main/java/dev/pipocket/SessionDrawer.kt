@@ -47,7 +47,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
         addView(ScrollView(context).apply { addView(rows); isFillViewport = true }, LayoutParams(-1, 0, 1f).apply { topMargin = context.dp(12) })
         addView(archiveButton, LayoutParams(-1, context.dp(48)))
         addView(context.actionButton("Settings", action = settings), LayoutParams(-1, context.dp(48)).apply { topMargin = context.dp(6) })
-        addView(context.textLabel("Separate conversations.\nFiles and this phone are shared.", 12f, true))
+        addView(context.textLabel("Separate Git worktrees.\nPhone and Git history are shared.", 12f, true))
     }
     fun render(items: List<ChatSession>, selectedId: String) {
         if (items == sessions && selectedId == selected) return
@@ -105,7 +105,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
             }
         }
     }
-    fun menu(anchor: View, session: ChatSession, includeSettings: Boolean = false) {
+    fun menu(anchor: View, session: ChatSession, includeSettings: Boolean = false, workspaceInfo: (() -> Unit)? = null) {
         PopupMenu(context, anchor).apply {
             menu.add("Rename chat").setOnMenuItemClickListener { rename(session); true }
             menu.add(if (session.pinned) "Unpin chat" else "Pin chat").setOnMenuItemClickListener { pin(session); true }
@@ -115,6 +115,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
                 menu.add(if (session.finished) "Reopen chat" else "Mark finished").setOnMenuItemClickListener { finish(session, !session.finished); true }
                 if (session.finished) menu.add("Archive chat").setOnMenuItemClickListener { archive(session, true); true }
             }
+            if (workspaceInfo != null) menu.add("Workspace details").setOnMenuItemClickListener { workspaceInfo(); true }
             if (includeSettings) menu.add("Settings").setOnMenuItemClickListener { settings(); true }
         }.show()
     }

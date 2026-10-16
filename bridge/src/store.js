@@ -6,14 +6,19 @@ import { Harness, createRegistry, defineDoc, defineTask, defineExtension } from 
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node';
 import { runPi } from './rpc.js';
 import { log } from './log.js';
+import { openWorkspaces } from './workspaces.js';
+
+export const DEFAULT_MAX_CONCURRENT = 8;
+export const MAX_CONCURRENT = 32;
 
 const Jobs = defineDoc({ kind: 'pocket.jobs', version: 1, scope: 'session', initial: () => ({ items: {} }) });
 export const active = job => ['queued', 'running'].includes(job.status);
 export const validSessionId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(id);
 const sessionOf = job => job.sessionId ?? 'pocket';
 
-export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], runner = runPi, maxConcurrent = 3 }) {
-  if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1 || maxConcurrent > 8) throw new Error('maxConcurrent must be an integer between 1 and 8');
+export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], runner = runPi,
+  maxConcurrent = DEFAULT_MAX_CONCURRENT, defaultBranch, remote = 'origin', workspaces }) {
+  if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1 || maxConcurrent > MAX_CONCURRENT) throw new Error('maxConcurrent must be an integer between 1 and ' + MAX_CONCURRENT);
   const sessionFlags = new Set(['--session', '--session-id', '--session-dir', '--continue', '--resume', '--fork', '--no-session', '-c', '-r']);
   if (extraArgs.some(arg => sessionFlags.has(arg.split('=')[0]))) throw new Error('PI_ARGS cannot override session isolation');
   await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -22,7 +27,7 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
   const lock = await open(lockPath, 'wx', 0o600).catch(() => { throw new Error('Storage locked. Stop the other bridge; after a crash, remove bridge.lock only after verifying no bridge is running.'); });
   await lock.writeFile(String(process.pid));
   const clients = new Map();
-  let harness, root;
+  let harness, root, spaces;
   const update = async (id, patch, runtime) => {
     const change = async tx => { Object.assign((await tx.doc(Jobs)).items[id], patch); };
     await (runtime ? runtime.commit(async tx => { await change(tx); }, ctx) : harness.commit(change, ctx));
@@ -49,9 +54,16 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
         await runtime.memo('dispatched', true, ctx);
         await update(task.input.id, { status: 'running', pending: null }, runtime);
         try {
+          await update(task.input.id, { progress: 'Preparing this chat’s isolated Git worktree…' }, runtime);
+          const workspace = await spaces.forSession(task.input.sessionId ?? 'pocket', runtime.signal);
+          runtime.signal.throwIfAborted();
+          await update(task.input.id, { workspace, progress: 'Working in this chat’s own Git worktree' }, runtime);
           const answer = await runner({
-            bin, cwd,
-            args: [...extraArgs, '--mode', 'rpc', '--session-dir', resolve(directory, 'pi-sessions'), '--session-id', (task.input.sessionId ?? 'pocket') === 'pocket' ? 'pocket' : 'pocket-' + task.input.sessionId],
+            bin, cwd: workspace.cwd,
+            args: [...extraArgs, '--mode', 'rpc', '--session-dir', resolve(directory, 'pi-sessions'), '--session-id', (task.input.sessionId ?? 'pocket') === 'pocket' ? 'pocket' : 'pocket-' + task.input.sessionId,
+              '--append-system-prompt', 'Pi Pocket workspace: this chat has its own Git worktree at ' + workspace.cwd +
+              '. Branch: ' + (workspace.branch ?? 'test') + '. Work inside this checkout, not paths remembered from earlier turns. ' +
+              'Do not switch branches, edit other checkouts, merge, or push unless explicitly requested. Uncommitted files from the original checkout were not copied. Phone actions are still shared.'],
             text: task.input.text, signal: runtime.signal, clients, id: task.input.id,
             onEvent: async event => {
               if (event.type === 'extension_ui_request') {
@@ -75,6 +87,7 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
     abort: async (task, runtime) => complete(task, runtime, 'cancelled', 'Stopped. Already-completed file/device changes are not rolled back.')
   });
   try {
+    spaces = workspaces ?? await openWorkspaces({ cwd, directory, defaultBranch, remote });
     const registry = createRegistry();
     registry.install(defineExtension({ name: 'pocket', tasks: [Command] }));
     harness = await Harness.open(await openNodeSqliteStorage(resolve(directory, 'assistant.sqlite')), { registry, models: createModels() }, ctx);

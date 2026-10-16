@@ -2,6 +2,20 @@
 
 Updated: 2026-10-16
 
+## Isolated worktrees and higher concurrency (0.4.0) — complete
+
+- Default active-request limit raised from 3 to **8**; `PI_MAX_CONCURRENT` now accepts **1–32**. Saved chats are not limited. More active Pi children use more memory/provider capacity; no claim of 32-provider stress testing.
+- Every chat, including legacy `pocket`, gets its own persistent worktree and `pocket/<repo-key>/<chat-key>` branch on its first new request. Pi launches with that checkout as cwd. Later turns, restore and bridge restart reuse it without resetting commits/uncommitted edits.
+- New trees discover/fetch the current remote default branch (`PI_GIT_REMOTE=origin`). Explicit `PI_DEFAULT_BRANCH` selects a local branch for offline/local-only use. The current feature branch and dirty/untracked/ignored source files are never copied.
+- `bridge/src/workspaces.js` owns preparation, deterministic repository/chat identity, atomic private manifests, recovery and branch/cwd checks. Preparation is serialized; model execution stays parallel. Setup failures, missing trees or manually switched branches fail closed, never run in the original checkout, and never delete/reset changes.
+- Durable stores workspace metadata with each job. Pi receives a workspace-specific appended system instruction; the user prompt stays unchanged so extension slash commands still work. Diagnostics record created/reused/failure metadata without paths, prompts, Git stderr or remote credentials.
+- Health protocol v3 advertises `worktreeIsolation: true`; the Android app rejects older bridges for new submissions. **⋮ → Workspace details** shows selectable directory, branch, base branch/commit. Sidebar warns that phone/Git history remain shared.
+- Finishing/archiving does not remove worktrees or automatically commit/merge/push. Worktrees prevent ordinary simultaneous working-file overwrites, not later merge conflicts or explicit cross-checkout access. Dependencies/ignored local config may need separate setup in a checkout. No OS sandbox was added.
+- `npm test`: **18 passed**. Real temporary Git repositories cover non-default/dirty source checkouts, two same-file edits, fresh remote default tips/default-branch changes, offline behavior, worktree reuse and recovery, branch/missing-tree checks, real RPC cwd/metadata integration, legacy isolation and failure non-fallback. Nine concurrent fake-RPC children reached independent pending dialogs with a configured limit of 12.
+- `assembleDebug assembleDebugAndroidTest lintDebug`: **BUILD SUCCESSFUL**; log `~/.local/android-sdk/pocket-worktrees-build.log`. Installed version **0.4.0**; Android instrumentation **OK (9 tests)**.
+- Phone/provider test via pi-droid: two concurrent fresh chats wrote TREE_A/TREE_B to the same relative `.pi-pocket-worktree-smoke.txt` in distinct worktrees/branches based on `main`. Both completed with their own content; the original checkout had no such file. Follow-up A and a further request after clean bridge restart retained TREE_A and the same branch. Workspace details dialog verified on-device.
+- Live authenticated health reports eight slots and isolation enabled. Private pre-upgrade backups are ignored under `bridge/data/pre-worktrees-backup/`; worktrees, manifests, model sessions and logs remain ignored/private. Test worktrees are retained, not deleted.
+
 ## Task-organized sidebar (0.3.0) — complete
 
 - Sidebar hierarchy is now **New chats → Needs attention → Working → Finished**. Pins prioritize only within a section. Working titles use muted grey instead of looking disabled; selection remains visible.
