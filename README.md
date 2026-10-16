@@ -34,6 +34,7 @@ The app uses Android's built-in SQLite API (no hosted database). Pi Durable comm
 - Native **Changes** screen: working/committed file lists, colored diffs, selected-file commits, recorded test commands/results, and explicit local merges.
 - Extension confirmation, selection, input, and editor dialogs.
 - Tool progress, completed assistant messages, cancellation, and connection errors.
+- Foreground request verification: Checking status / Status unknown instead of trusting saved running flags; approvals require fresh, per-request evidence.
 - Stable client request IDs: reconnecting after a lost HTTP response does not create a second job.
 - Durable restart handling: **an externally dispatched action is never automatically replayed**.
 - Keystore-encrypted pairing token; loopback-only HTTP server; authenticated endpoints.
@@ -62,7 +63,7 @@ git commit -m "Enable Android and bridge CI"
 git push
 ```
 
-**Verification so far (2026-10-16):** all 36 bridge/diagnostics/session/worktree/review tests and 18 Android instrumentation tests pass. `assembleDebug assembleDebugAndroidTest lintDebug` passes locally in Termux. On-device tests cover preserved legacy history/pairing, drawer create/switch/rename/pin/search, independent drafts, simultaneous real Pi requests, scoped cancellation, and per-chat context recall. A full on-phone Changes workflow also passed against a disposable repository: selected commits preserved unrelated staging, real test failures/successes/stale results/cancellation were shown, and an explicitly confirmed local merge updated only the disposable default branch. The 0.6.0 phone check also verified contextual Changes visibility before/after coding, commits and local integration, full-screen readable diffs, long filenames and a 200% font-size review. Narrow 320dp layouts and large-font text geometry are covered by instrumentation. Earlier tests also exercised pi-droid's read-only `android_screen_state` and the unpaired-state regression. Voice input, extension dialogs on-device, and background-process survival remain unverified. See [PROGRESS.md](PROGRESS.md) for the local build workaround and test results.
+**Verification so far (2026-10-16):** all 38 bridge/diagnostics/session/worktree/review tests pass; 24 Android instrumentation checks passed in the separate fixture APK (including a real activity/HTTP approval-freshness test). Installed app: **0.6.1**. Foreground-status behavior and incomplete lifecycle-matrix evidence are documented in [docs/reliability-baseline.md](docs/reliability-baseline.md). `assembleDebug assembleDebugAndroidTest lintDebug` passes locally in Termux. On-device tests cover preserved legacy history/pairing, drawer create/switch/rename/pin/search, independent drafts, simultaneous real Pi requests, scoped cancellation, and per-chat context recall. A full on-phone Changes workflow also passed against a disposable repository: selected commits preserved unrelated staging, real test failures/successes/stale results/cancellation were shown, and an explicitly confirmed local merge updated only the disposable default branch. The 0.6.0 phone check also verified contextual Changes visibility before/after coding, commits and local integration, full-screen readable diffs, long filenames and a 200% font-size review. Narrow 320dp layouts and large-font text geometry are covered by instrumentation. Earlier tests also exercised pi-droid's read-only `android_screen_state` and the unpaired-state regression. Voice input, extension dialogs on-device, and background-process survival remain unverified. See [PROGRESS.md](PROGRESS.md) for the local build workaround and test results.
 
 The app targets Android 15 and supports Android 8+ (API 26). The bridge is intended to run in Termux on the same physical device. This checkout does not contain an Android SDK/JDK; the tested Termux environment uses separately installed tools and a locally rebuilt ARM-native AAPT2 (see [PROGRESS.md](PROGRESS.md)).
 
@@ -131,6 +132,8 @@ Tap **＋** in the top bar or **☰ → New chat**. The drawer groups chats in t
 4. **Finished** — tasks you explicitly marked finished, with **✓ Finished by you**.
 
 Search filters titles within the current view. Pins order chats **within** a lifecycle section; they never move running/finished tasks above attention items. Use **⋮** beside a chat (or long-press it) to rename or pin it. Drafts and selected chat survive normal app restarts. Completion in another chat does not switch your selection, and **Stop** targets only the current chat's request.
+
+On returning to the app, saved active requests show **Checking status** until individually verified. Connection failures show **Status unknown**—work may still be running, so this is not a failed/completed result. Unverified chats appear under Needs attention rather than claiming current work/approval. Approvals require fresh evidence; backgrounding, connection loss or an interrupted result hides/dismisses stale dialogs. The app checks the same request IDs without replaying dispatched jobs. This does not keep Termux alive or deliver background notifications.
 
 ### Finish, archive and restore
 

@@ -22,6 +22,9 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
     private val archiveButton = context.actionButton("Archive") { showingArchive = !showingArchive; renderRows() }
     private var sessions: List<ChatSession> = emptyList()
     private var selected = ""
+    private var requestStates: Map<String, RequestState> = emptyMap()
+    private fun sectionFor(session: ChatSession) = if (session.active && requestStates[session.id]?.let(::requestAttention) == true)
+        ChatSection.ATTENTION else session.section
     private var showingArchive = false
     init {
         orientation = VERTICAL; setPadding(context.dp(18), context.dp(16), context.dp(18), context.dp(12))
@@ -50,23 +53,23 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
         addView(context.actionButton("Settings", action = settings), LayoutParams(-1, -2).apply { topMargin = context.dp(6) })
         addView(context.textLabel("Separate Git worktrees.\nPhone and Git history are shared.", 12f, true))
     }
-    fun render(items: List<ChatSession>, selectedId: String) {
-        if (items == sessions && selectedId == selected) return
-        sessions = items; selected = selectedId
+    fun render(items: List<ChatSession>, selectedId: String, states: Map<String, RequestState> = emptyMap()) {
+        if (items == sessions && selectedId == selected && states == requestStates) return
+        sessions = items; selected = selectedId; requestStates = states
         renderRows()
     }
     fun showChats() { showingArchive = false; renderRows() }
     private fun renderRows() {
         rows.removeAllViews()
         val visible = sessions.filter { it.archived == showingArchive }
-        summary.text = if (showingArchive) "Archive · ${visible.size} saved chats" else "${visible.size} chats · ${visible.count { it.section == ChatSection.ATTENTION }} need attention"
+        summary.text = if (showingArchive) "Archive · ${visible.size} saved chats" else "${visible.size} chats · ${visible.count { sectionFor(it) == ChatSection.ATTENTION }} need attention"
         archiveButton.text = if (showingArchive) "← Back to chats" else "Archive (${sessions.count { it.archived }})"
         archiveButton.contentDescription = if (showingArchive) "Back to chats" else "Open archive"
         val query = search.text.toString().trim().lowercase(Locale.ROOT)
         val filtered = visible.filter { it.title.lowercase(Locale.ROOT).contains(query) }
         if (filtered.isEmpty()) { rows.addView(context.textLabel(if (query.isNotEmpty()) "No chats found" else if (showingArchive) "No archived chats yet" else "Start a new chat above", 14f, true)); return }
         for (section in ChatSection.entries) {
-            val group = filtered.filter { it.section == section }
+            val group = filtered.filter { sectionFor(it) == section }
             if (group.isEmpty()) continue
             rows.addView(context.textLabel(section.heading, 11f, true).apply { setPadding(context.dp(8), context.dp(14), 0, context.dp(8)) })
             for (session in group) {
@@ -86,6 +89,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
                 })
                 val state = when {
                     session.archived -> "✓ Finished · archived"
+                    session.active && requestStates[session.id]?.let(::requestAttention) == true -> requestStateLabel(requestStates.getValue(session.id))!!
                     session.needsApproval -> "◉ Your feedback needed"
                     session.status == "sending" -> "◌ Connecting / waiting for a slot"
                     session.active -> "● Working in background"

@@ -42,6 +42,20 @@ class SessionDrawerTest {
         assertEquals(PocketColors.muted, working.currentTextColor)
         assertTrue(working.parent.let { it as View }.isEnabled)
     }
+    @Test fun unverifiedWorkIsAttentionNotAWorkingOrApprovalClaim() = onMain {
+        val drawer = drawer()
+        val sessions = listOf(ChatSession("a", "Saved approval", "", false, 1L, "running", true))
+        drawer.render(sessions, "a", mapOf("a" to RequestState.UNAVAILABLE))
+        assertTrue(labels(drawer).contains("NEEDS ATTENTION"))
+        assertTrue(labels(drawer).contains("! Status unknown · check connection"))
+        assertFalse(labels(drawer).contains("WORKING"))
+        assertFalse(labels(drawer).contains("◉ Your feedback needed"))
+        drawer.render(sessions, "a", mapOf("a" to RequestState.CURRENT))
+        assertTrue(labels(drawer).contains("◉ Your feedback needed"))
+        drawer.render(sessions, "a", mapOf("a" to RequestState.CHECKING))
+        assertTrue(labels(drawer).contains("◌ Checking saved request"))
+        assertFalse(labels(drawer).contains("◉ Your feedback needed"))
+    }
     @Test fun archiveViewHidesNormalChatsAndMainViewHidesArchivedChats() = onMain {
         val drawer = drawer()
         drawer.render(listOf(

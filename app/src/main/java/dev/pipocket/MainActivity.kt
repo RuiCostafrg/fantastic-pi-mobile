@@ -50,11 +50,14 @@ class MainActivity : Activity() {
     private var renderedSession = ""
     private var renderedJobs: List<Job>? = null
     private var renderedPaired = false
+    private var renderedStates: List<RequestState> = emptyList()
+    private val observations = RequestObservations()
     private var bindingDraft = false
     private var visible = false
     private var modalOpen = false
     private var speechSessionId: String? = null
     private var approvalDialog: AlertDialog? = null
+    private var approvalDialogKey: String? = null
     private val deferredApprovals = mutableSetOf<String>()
     private val polling = mutableSetOf<String>() // UI-thread owned, one HTTP poll per job.
     private val worker = Executors.newFixedThreadPool(4)
@@ -106,7 +109,7 @@ class MainActivity : Activity() {
         header.addView(more, LinearLayout.LayoutParams(dp(48), dp(48)))
         root.addView(header)
         subtitle = textLabel("", 12f, true); root.addView(subtitle)
-        status = textLabel("", 13f, true).apply { maxLines = 3 }; root.addView(status)
+        status = textLabel("", 13f, true); root.addView(status)
         lifecycle = actionButton("Mark finished") {
             history.session(selectedId)?.let { session ->
                 if (session.archived) archiveSession(session, false) else finishSession(session, !session.finished)
@@ -168,8 +171,12 @@ class MainActivity : Activity() {
         render()
     }
 
-    override fun onStart() { super.onStart(); visible = true; changesInfo = null; nextChangesCheck = 0; render(); handler.post(poll) }
-    override fun onStop() { saveDraft(); visible = false; handler.removeCallbacks(poll); super.onStop() }
+    override fun onStart() { super.onStart(); observations.reset(); visible = true; changesInfo = null; nextChangesCheck = 0; render(); handler.post(poll) }
+    override fun onStop() {
+        saveDraft(); visible = false; observations.reset()
+        approvalDialog?.dismiss(); approvalDialog = null
+        handler.removeCallbacks(poll); super.onStop()
+    }
     override fun onDestroy() { approvalDialog?.dismiss(); worker.shutdown(); super.onDestroy() }
     override fun onSaveInstanceState(outState: Bundle) { saveDraft(); outState.putString("speechSession", speechSessionId); super.onSaveInstanceState(outState) }
     @Deprecated("Platform back API")
@@ -261,7 +268,7 @@ class MainActivity : Activity() {
         draft.isEnabled = !session.archived
         talk.isEnabled = !session.archived
         talk.alpha = if (talk.isEnabled) 1f else 0.35f
-        subtitle.text = if (others > 0) "$others other chats active · own Git worktrees" else "A space for your next idea"
+        subtitle.text = if (others > 0) "$others other chats with pending requests" else "A space for your next idea"
         send.text = if (connection.paired) "Send" else "Pair bridge"
         send.isEnabled = !session.archived && (!connection.paired || current == null)
         stop.visibility = if (current != null) View.VISIBLE else View.GONE
@@ -271,13 +278,15 @@ class MainActivity : Activity() {
             session.archived -> "Archived · history preserved. Restore this chat to continue."
             session.finished -> "✓ Finished by you · archive from ⋮, or send a message to reopen."
             !connection.paired -> "Bridge not paired. Tap Pair bridge; saved requests resume after pairing."
-            current?.pending?.isNotEmpty() == true -> "This chat needs your approval. Other chats can keep running."
-            current != null -> current.progress.ifBlank { if (current.status == "sending") "Connecting to your Termux bridge…" else "Pi is working in this chat…" }
+            current != null -> requestSummary(current, observations.state(current.id))
             jobs.lastOrNull()?.status == "failed" -> "Request failed. Inspect the result below before retrying."
+            jobs.lastOrNull()?.status == "interrupted" -> "Interrupted · inspect changes before a new request. Work was not replayed."
             else -> "Ready when you are"
         }
-        review.visibility = if (current?.pending?.isNotEmpty() == true) View.VISIBLE else View.GONE
-        if (renderedSession != selectedId || renderedJobs != jobs || renderedPaired != connection.paired) {
+        val approvalCurrent = current != null && observations.state(current.id) == RequestState.CURRENT && connection.paired
+        review.visibility = if (approvalCurrent && current?.pending?.isNotEmpty() == true) View.VISIBLE else View.GONE
+        val states = jobs.map { if (it.active) observations.state(it.id) else RequestState.CURRENT }
+        if (renderedSession != selectedId || renderedJobs != jobs || renderedPaired != connection.paired || renderedStates != states) {
             val atBottom = renderedSession != selectedId || scroll.getChildAt(0).height - scroll.height - scroll.scrollY < dp(100)
             val previousY = scroll.scrollY
             messages.removeAllViews()
@@ -291,18 +300,24 @@ class MainActivity : Activity() {
                     background = rounded(PocketColors.card, dp(18).toFloat())
                 }, LinearLayout.LayoutParams(-1, -2).apply { leftMargin = dp(26); topMargin = dp(16) })
                 val unpaired = job.active && !connection.paired
-                val state = if (unpaired) "WAITING FOR PAIRING" else job.status.uppercase()
-                val answer = if (unpaired) "Pair your Termux bridge to continue." else job.answer.ifBlank { if (job.pending.isNotEmpty()) "Waiting for your approval…" else "Waiting for Pi…" }
+                val observed = observations.state(job.id)
+                val state = if (unpaired) "WAITING FOR PAIRING" else requestLabel(job, observed)
+                val answer = if (unpaired) "Pair your Termux bridge to continue." else job.answer.ifBlank {
+                    if (job.active) requestSummary(job, observed) else "No answer recorded."
+                }
                 messages.addView(textLabel("PI · $state\n$answer", 16f).apply {
                     setPadding(dp(14), dp(14), dp(14), dp(14)); setTextIsSelectable(true)
                     background = rounded(PocketColors.panel, dp(18).toFloat())
                 }, LinearLayout.LayoutParams(-1, -2).apply { rightMargin = dp(12); topMargin = dp(10); bottomMargin = dp(10) })
             }
-            renderedSession = selectedId; renderedJobs = jobs; renderedPaired = connection.paired
+            renderedSession = selectedId; renderedJobs = jobs; renderedPaired = connection.paired; renderedStates = states
             scroll.post { if (atBottom) scroll.fullScroll(View.FOCUS_DOWN) else scroll.scrollTo(0, previousY) }
         }
-        navigation.render(sessions, selectedId)
-        if (current?.pending.isNullOrEmpty()) { approvalDialog?.dismiss(); approvalDialog = null }
+        val sessionStates = history.activeJobs().associate { it.sessionId to observations.state(it.id) }
+        navigation.render(sessions, selectedId, sessionStates)
+        if (!approvalCurrent || current?.pending.isNullOrEmpty() || approvalDialogKey != current?.takeIf { it.pending.isNotEmpty() }?.let { approvalKey(it) }) {
+            approvalDialog?.dismiss(); approvalDialog = null
+        }
         maybeShowApproval()
     }
 
@@ -334,21 +349,36 @@ class MainActivity : Activity() {
         if (!connection.paired) return
         for (job in history.activeJobs()) {
             if (!polling.add(job.id)) continue
+            val epoch = observations.epoch
+            val endpoint = connection.endpoint
             worker.execute {
+                var result: JSONObject? = null
+                var failure: Exception? = null
                 try {
-                    val result = if (job.status == "sending") {
+                    val received = if (job.status == "sending") {
                         val health = connection.request("/health")
                         if (health.optInt("protocolVersion") < 3 || !health.optBoolean("worktreeIsolation")) throw BridgeException(426, "Update the Termux bridge for isolated Git worktrees")
                         connection.request("/v1/jobs", JSONObject().put("requestId", job.id).put("text", job.text).put("sessionId", job.sessionId))
                     } else connection.request("/v1/jobs/${job.id}")
-                    if (result.optString("sessionId", "pocket") != job.sessionId) throw BridgeException(409, "Bridge returned a different chat; request not applied")
-                    history.update(job.id, result.getString("status"), result.optString("answer"), result.optString("progress"), result.optJSONObject("pending")?.toString().orEmpty())
-                } catch (error: Exception) {
-                    val rejected = job.status == "sending" && error is BridgeException && error.code in listOf(400, 409, 426)
-                    if (rejected) history.update(job.id, "rejected", error.message ?: "Request rejected")
-                    else history.problem(job.id, if (error is BridgeException && error.code == 429) "${error.message ?: "Bridge is busy"} Waiting and retrying with the same request ID." else "Not updated: ${error.message ?: "Connection error"}. Retrying this request ID.")
-                } finally {
-                    handler.post { polling.remove(job.id); if (!isDestroyed && visible) render() }
+                    if (received.optString("sessionId", "pocket") != job.sessionId) throw BridgeException(409, "Bridge returned a different chat; request not applied")
+                    require(received.getString("status") in listOf("queued", "running", "done", "failed", "cancelled", "interrupted")) { "Unknown bridge job state" }
+                    result = received
+                } catch (error: Exception) { failure = error }
+                handler.post {
+                    polling.remove(job.id)
+                    // Responses from before backgrounding or re-pairing are not live evidence.
+                    if (isDestroyed || !visible || epoch != observations.epoch || endpoint != connection.endpoint) return@post
+                    val received = result
+                    val error = failure
+                    if (received != null) {
+                        history.update(job.id, received.getString("status"), received.optString("answer"), received.optString("progress"), received.optJSONObject("pending")?.toString().orEmpty())
+                        observations.record(job.id, epoch, RequestState.CURRENT)
+                    } else if (job.status == "sending" && error is BridgeException && error.code in listOf(400, 409, 426)) {
+                        history.update(job.id, "rejected", error.message ?: "Request rejected")
+                    } else {
+                        observations.record(job.id, epoch, if (error is BridgeException && error.code == 429) RequestState.WAITING else RequestState.UNAVAILABLE)
+                    }
+                    render()
                 }
             }
         }
@@ -364,24 +394,34 @@ class MainActivity : Activity() {
         hideKeyboard(); render(); refresh()
     }
     private fun network(jobId: String? = null, action: () -> Unit) {
+        val epoch = observations.epoch
+        val endpoint = connection.endpoint
         worker.execute {
-            try { action() }
-            catch (error: Exception) { if (jobId != null) history.problem(jobId, error.message ?: "Connection error") }
-            handler.post { if (!isDestroyed && visible) { render(); refresh() } }
+            var failed = false
+            try { action() } catch (_: Exception) { failed = true }
+            handler.post {
+                if (!isDestroyed && visible && epoch == observations.epoch && endpoint == connection.endpoint) {
+                    if (jobId != null) observations.record(jobId, epoch, if (failed) RequestState.UNAVAILABLE else RequestState.CHECKING)
+                    render(); refresh()
+                }
+            }
         }
     }
     private fun approvalKey(job: Job): String = job.id + ":" + JSONObject(job.pending).optString("id")
     private fun maybeShowApproval() {
         if (!visible || modalOpen || drawer.isDrawerVisible(GravityCompat.START) || approvalDialog?.isShowing == true) return
         val job = selectedJob() ?: return
+        if (!connection.paired || observations.state(job.id) != RequestState.CURRENT) return
         if (job.pending.isNotEmpty() && approvalKey(job) !in deferredApprovals) showApproval(job)
     }
     private fun showApproval(job: Job) {
-        if (job.sessionId != selectedId || job.pending.isEmpty()) return
+        if (!visible || job.sessionId != selectedId || job.pending.isEmpty() || observations.state(job.id) != RequestState.CURRENT) return
         val pending = JSONObject(job.pending)
         val key = approvalKey(job)
         val builder = AlertDialog.Builder(this).setTitle("${history.session(job.sessionId)?.title}: ${pending.optString("title", "Pi extension")}")
         fun reply(json: JSONObject) {
+            val current = selectedJob() ?: return
+            if (!visible || observations.state(job.id) != RequestState.CURRENT || current.pending.isEmpty() || approvalKey(current) != key) return
             deferredApprovals.add(key)
             network(job.id) { connection.request("/v1/jobs/${job.id}/ui", json.put("id", pending.getString("id"))) }
         }
@@ -405,6 +445,7 @@ class MainActivity : Activity() {
                     .setNegativeButton("Cancel") { _, _ -> reply(JSONObject().put("cancelled", true)) }
             }
         }
+        approvalDialogKey = key
         approvalDialog = builder.create().also { dialog -> dialog.setOnDismissListener { if (approvalDialog === dialog) approvalDialog = null }; dialog.show() }
     }
     private fun settings() {
@@ -418,7 +459,7 @@ class MainActivity : Activity() {
             .setPositiveButton("Save", null).setNeutralButton("Test", null).setNegativeButton("Cancel", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                try { connection.save(url.text.toString(), token.text.toString()); Log.i("PiPocket", "pairing saved"); dialog.dismiss(); render(); refresh() }
+                try { connection.save(url.text.toString(), token.text.toString()); observations.reset(); Log.i("PiPocket", "pairing saved"); dialog.dismiss(); render(); refresh() }
                 catch (error: Exception) { token.error = error.message }
             }
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {

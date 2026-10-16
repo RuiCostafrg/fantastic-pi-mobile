@@ -2,6 +2,17 @@
 
 Updated: 2026-10-16
 
+## Trustworthy foreground request status (0.6.1) — complete increment
+
+- Saved request state no longer implies live execution or a current approval. Foreground entry/re-pairing starts at Checking status; per-request evidence expires after 10 seconds. Connection failure shows Status unknown; HTTP 429 shows waiting for a bridge slot. Unverified chats move to Needs attention with explicit labels.
+- Cached approvals are hidden/dismissed until the exact request is freshly verified. Action handlers recheck freshness/dialog identity. Late responses from earlier visibility/connection epochs cannot update history or revive dialogs. Interrupted results explicitly explain non-replay. Durable IDs, admission, drafts, history, review operations and the existing UI design remain intact; no database migration.
+- `RequestObservations.kt` owns ephemeral evidence/presentation. It is not persisted as progress text, and one chat's response never proves another is running. Poll results apply on the UI thread after epoch/endpoint checks.
+- Added an opt-in separate fixture APK (`-PreliabilityTests=true`), fake-Pi/Durable/worktree lifecycle harness and real-activity HTTP/accessibility regression. The focused UI test verifies checking → unavailable → verified approval → interrupted without cached approval leakage. Its initial Allow/ALLOW mismatch was fixed in the test, not worked around in runtime code.
+- **38 bridge tests passed; 24 Android tests passed** on the isolated APK. Isolated and normal `assembleDebug assembleDebugAndroidTest lintDebug` succeeded with the existing native AAPT2 override. Logs: `~/.local/android-sdk/pocket-reliability-build.log` and `pocket-reliability-release-build.log`.
+- Installed normal **0.6.1 / versionCode 7** after backing up app state and verifying zero saved active requests. A before/after comparison confirmed unchanged logical jobs/sessions/drafts, selected chat and encrypted pairing. Private backups under ignored `bridge/data/pre-reliability-backup/`. Pi-droid observed the preserved blank chat, Ready status and paired Send control. The live bridge was not restarted and remains healthy at protocol v4/eight slots.
+- Isolated test packages removed after verification to avoid duplicate launcher entries. No microphone, IME, font, battery, network or lock changes. Phone tests must be announced: the user found the earlier repeated opening/closing disruptive.
+- **Not complete:** notifications, background services/process survival, secure lock testing, abrupt Termux death and provider-internet loss. The revised full lifecycle harness has not been rerun: an earlier offline failure exposed a server-state/app-observation synchronization assumption. Do not call the full matrix green. Exact evidence, reproduction and remaining checks: [docs/reliability-baseline.md](docs/reliability-baseline.md).
+
 ## Human-readable coding review and calmer UI (0.6.0) — complete
 
 - Replaced always-visible Δ with **Review N changed files**, shown only for actual working/committed changes in the selected chat. Changes is also conditional in the chat menu. Committed files stay discoverable until integration; active/uncertain repository actions remain reachable even when clean, preserving Stop/exact-ID recovery.
