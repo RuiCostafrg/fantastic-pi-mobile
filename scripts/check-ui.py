@@ -17,7 +17,7 @@ args = parser.parse_args()
 subprocess.run(['adb', 'shell', 'uiautomator', 'dump', '/sdcard/fantastic-pi-mobile-check.xml'], check=True, stdout=subprocess.DEVNULL)
 xml = subprocess.check_output(['adb', 'exec-out', 'cat', '/sdcard/fantastic-pi-mobile-check.xml'])
 nodes = list(ET.fromstring(xml).iter('node'))
-assert any(n.get('package') == 'dev.pipocket' for n in nodes), 'Fantastic Pi Mobile not visible'
+assert any(n.get('package') == 'dev.fantasticpimobile' for n in nodes), 'Fantastic Pi Mobile not visible'
 texts = [n.get('text', '') for n in nodes]
 buttons = [n for n in nodes if n.get('class') == 'android.widget.Button']
 if args.state == 'unpaired':

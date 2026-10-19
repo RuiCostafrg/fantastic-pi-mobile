@@ -8,8 +8,8 @@ import { DatabaseSync, backup } from 'node:sqlite';
 
 export const bridge = resolve(dirname(fileURLToPath(import.meta.url)), '../bridge');
 const data = resolve(bridge, process.env.PI_DATA_DIR ?? 'data');
-const session = process.env.PI_POCKET_TMUX_SESSION ?? 'work';
-const windowName = process.env.PI_POCKET_TMUX_WINDOW ?? 'pocket-bridge';
+const session = process.env.FANTASTIC_PI_MOBILE_TMUX_SESSION ?? 'work';
+const windowName = process.env.FANTASTIC_PI_MOBILE_TMUX_WINDOW ?? 'fantastic-pi-mobile-bridge';
 if (![session, windowName].every(name => /^[a-zA-Z0-9_-]+$/.test(name))) {
   throw new Error('Invalid dedicated tmux session/window name.');
 }
@@ -49,7 +49,7 @@ export function idleEvidence(directory = data) {
 }
 
 async function api(path, body) {
-  const token = process.env.PI_POCKET_TOKEN;
+  const token = process.env.FANTASTIC_PI_MOBILE_TOKEN;
   if (!token || token.length < 32) throw new Error('Missing private pairing configuration.');
   const response = await fetch('http://127.0.0.1:' + (process.env.PORT ?? 8787) + path, {
     method: body === undefined ? 'GET' : 'POST',
@@ -208,7 +208,7 @@ export async function main(args) {
     default: throw new Error('Usage: scripts/bridge-work status|pause|resume|start|stop');
   }
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(await realpath(resolve(process.argv[1]))).href) {
   main(process.argv.slice(2)).catch(error => {
     // Do not print raw network/child errors, argv, environments or token values.
     const safe = error.message.startsWith('Command failed:') || error.name === 'TypeError' ? 'Local workflow check failed; inspect configuration and tmux metadata.' : error.message;

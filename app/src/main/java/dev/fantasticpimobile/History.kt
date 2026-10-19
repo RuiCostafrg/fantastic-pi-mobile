@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import android.content.ContentValues
 import android.content.Context
@@ -33,7 +33,7 @@ data class ChatSession(val id: String, val title: String, val draft: String, val
 }
 
 /** Owns chat organization, migration and per-chat single-flight admission. IDs never depend on titles. */
-class History(context: Context, name: String = "pocket.sqlite") : SQLiteOpenHelper(context, name, null, 3) {
+class History(context: Context, name: String = "fantastic-pi-mobile.sqlite") : SQLiteOpenHelper(context, name, null, 3) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE jobs (id TEXT PRIMARY KEY, text TEXT NOT NULL, status TEXT NOT NULL, answer TEXT NOT NULL DEFAULT '', created INTEGER NOT NULL, sessionId TEXT NOT NULL DEFAULT 'pocket', progress TEXT NOT NULL DEFAULT '', pending TEXT NOT NULL DEFAULT '')")
         createSessions(db)
@@ -140,7 +140,7 @@ class History(context: Context, name: String = "pocket.sqlite") : SQLiteOpenHelp
                 db.update("sessions", ContentValues().apply { put("updated", System.currentTimeMillis()) }, "id=?", arrayOf(old.sessionId))
             }
             db.setTransactionSuccessful()
-            if (old.status != status) Log.i("PiPocket", "job=$id session=${old.sessionId} status=$status")
+            if (old.status != status) Log.i("FantasticPiMobile", "job=$id session=${old.sessionId} status=$status")
         } finally { db.endTransaction() }
     }
     fun problem(id: String, message: String) {

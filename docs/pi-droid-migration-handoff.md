@@ -7,7 +7,7 @@ historical. Pi-droid now exports read-only host identity and passive power
 observation helpers with exact-transport pinning and structured evidence-loss
 outcomes. Details and limits: `~/projects/pi-droid/docs/local-reliability-helpers.md`.
 Pocket's optional external adapter is documented in
-[plugins/pi-droid-pocket/README.md](../plugins/pi-droid-pocket/README.md).
+[plugins/pi-droid-fantastic-pi-mobile/README.md](../plugins/pi-droid-fantastic-pi-mobile/README.md).
 Its start/pause/resume/stop actions require approval and explicit confirmation;
 its heartbeat/unload never manage production. Dedicated tmux names are now
 configurable, retaining the original defaults.
@@ -43,8 +43,8 @@ This work was a mix, not pi-droid alone:
 | Pairing after the user supplied a fresh screenshot | Local Python subprocess driving `adb pair` with private FIFO/stdin | Consider an explicit-consent secure pairing operation; never conflate pairing with reconnect |
 | Bridge start/status/pause/resume/stop | `scripts/bridge-work` + `scripts/bridge-work.mjs` | App-specific optional adapter/plugin over reusable host process/tmux helpers, if appropriate |
 | Admission gate/global job and review counts | `bridge/src/store.js`, `bridge/src/server.js` | Remains Fantastic Pi Mobile server responsibility; a plugin may invoke it |
-| Disposable tmux/restart/screen-off harness and detached same-phone sampler | `scripts/check-bridge-work.py`, `scripts/power_observer.py`, `scripts/test_power_observer.py` | Generic passive power/transport observation can move to pi-droid; keep Pocket fixture/journal assertions app-specific |
-| Bridge/maintenance integration tests | `bridge/test/maintenance.test.js`, existing bridge suite | Retain in Pocket; add target-package contract tests for extracted helpers |
+| Disposable tmux/restart/screen-off harness and detached same-phone sampler | `scripts/check-bridge-work.py`, `scripts/power_observer.py`, `scripts/test_power_observer.py` | Generic passive power/transport observation can move to pi-droid; keep Fantastic Pi Mobile fixture/journal assertions app-specific |
+| Bridge/maintenance integration tests | `bridge/test/maintenance.test.js`, existing bridge suite | Retain in Fantastic Pi Mobile; add target-package contract tests for extracted helpers |
 | One-word gym launcher | `~/.pi/agent/bin/gym`, built on the user's zsh work/tmux setup | User convenience, not automatically part of Android automation core |
 
 No pi-droid source/build/config change was made for this request. The rejected manual pairing wizard is scratch material, not migration source.
@@ -53,7 +53,7 @@ No pi-droid source/build/config change was made for this request. The rejected m
 
 ### Host-side tmux bridge control
 
-The shell launcher changes into `bridge/`, loads its existing private `.env` with Node's native env-file support and calls the management module. The module targets existing session `work`, named window `pocket-bridge`, preserves other panes, disables renaming on its own window and retains its exited pane. The bridge binds loopback only. Controller/server output goes to private diagnostics, not terminal history. No automatic restart/boot mechanism.
+The shell launcher changes into `bridge/`, loads its existing private `.env` with Node's native env-file support and calls the management module. The module targets existing session `work`, named window `fantastic-pi-mobile-bridge`, preserves other panes, disables renaming on its own window and retains its exited pane. The bridge binds loopback only. Controller/server output goes to private diagnostics, not terminal history. No automatic restart/boot mechanism.
 
 Status validates storage-lock PID, cwd, Node executable, server entry point, `/proc` process start ticks and HTTP health owner; queries SQLite read-only for all nonterminal Durable tasks. Stop pauses admissions, requires all model AND review operations idle and every Durable task terminal, backs up private state, rechecks identity/idleness/gate, SIGTERMs, and waits for lock release. It never deletes a lock, force-kills, opens a competing Durable harness, or authorizes external-action replay.
 

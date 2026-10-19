@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import android.app.Activity
 import android.app.AlertDialog
@@ -62,9 +62,9 @@ class ChangesActivity : Activity() {
         if (!Regex("[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}").matches(sessionId)) { finish(); return }
         connection = Connection(this)
         pending = preferences.getString("pending-$sessionId", null)?.let { JSONObject(it) }
-        window.statusBarColor = PocketColors.background; window.navigationBarColor = PocketColors.background
+        window.statusBarColor = FantasticPiMobileColors.background; window.navigationBarColor = FantasticPiMobileColors.background
         val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setBackgroundColor(PocketColors.background)
+            orientation = LinearLayout.VERTICAL; setBackgroundColor(FantasticPiMobileColors.background)
             setPadding(dp(20), dp(8), dp(20), dp(12))
             setOnApplyWindowInsetsListener { view, insets ->
                 view.setPadding(dp(20) + insets.systemWindowInsetLeft, dp(8) + insets.systemWindowInsetTop,
@@ -99,7 +99,7 @@ class ChangesActivity : Activity() {
         body.addView(integration, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
         root.addView(ScrollView(this).apply { addView(body); isFillViewport = true; clipToPadding = false }, LinearLayout.LayoutParams(-1, 0, 1f))
         commit = actionButton("Select files to commit", "Commit selected files") { confirmCommit() }.apply {
-            background = rounded(PocketColors.accent, dp(12).toFloat()); setTextColor(PocketColors.background)
+            background = rounded(FantasticPiMobileColors.accent, dp(12).toFloat()); setTextColor(FantasticPiMobileColors.background)
         }
         root.addView(commit, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
         commitHint = textLabel("Commits whole files to this chat’s branch. Nothing pushed.", 11f, true); root.addView(commitHint)
@@ -222,7 +222,7 @@ class ChangesActivity : Activity() {
         val dialog = Dialog(this).apply { requestWindowFeature(Window.FEATURE_NO_TITLE) }
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12))
-            setBackgroundColor(PocketColors.panel)
+            setBackgroundColor(FantasticPiMobileColors.panel)
         }
         panel.addView(textLabel(title, 20f).apply { setPadding(dp(12), dp(8), dp(12), dp(12)); setTypeface(typeface, Typeface.BOLD) })
         panel.addView(ScrollView(this).apply { addView(view) }, LinearLayout.LayoutParams(-1, 0, 1f))

@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import android.content.Context
 import android.content.res.ColorStateList
@@ -19,7 +19,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 /** Calm, Catppuccin Mocha-inspired surfaces; color is never the only change indicator. */
-object PocketColors {
+object FantasticPiMobileColors {
     val background = Color.rgb(30, 30, 46)
     val panel = Color.rgb(24, 24, 37)
     val card = Color.rgb(49, 50, 68)
@@ -34,7 +34,7 @@ object PocketColors {
 fun Context.dp(n: Int) = (n * resources.displayMetrics.density).toInt()
 fun rounded(color: Int, radius: Float = 18f) = GradientDrawable().apply { setColor(color); cornerRadius = radius }
 fun Context.textLabel(text: String, size: Float = 15f, muted: Boolean = false) = TextView(this).apply {
-    this.text = text; textSize = size; setTextColor(if (muted) PocketColors.muted else PocketColors.text)
+    this.text = text; textSize = size; setTextColor(if (muted) FantasticPiMobileColors.muted else FantasticPiMobileColors.text)
     setPadding(0, dp(5), 0, dp(5)); setLineSpacing(dp(2).toFloat(), 1f)
 }
 /** Use wrap-content height at call sites: 48dp is a touch minimum, not a text-height cap. */
@@ -43,8 +43,8 @@ fun Context.actionButton(text: String, description: String = text, action: () ->
     minWidth = 0; minimumWidth = 0; minHeight = dp(48); minimumHeight = dp(48)
     setPadding(dp(16), dp(10), dp(16), dp(10)); maxLines = Int.MAX_VALUE
     gravity = Gravity.CENTER; includeFontPadding = true
-    setTextColor(PocketColors.accent); textSize = 14f; setTypeface(typeface, Typeface.BOLD)
-    background = RippleDrawable(ColorStateList.valueOf(0x22b4befe), rounded(PocketColors.card, dp(12).toFloat()), null)
+    setTextColor(FantasticPiMobileColors.accent); textSize = 14f; setTypeface(typeface, Typeface.BOLD)
+    background = RippleDrawable(ColorStateList.valueOf(0x22b4befe), rounded(FantasticPiMobileColors.card, dp(12).toFloat()), null)
     stateListAnimator = null
     setOnClickListener { action() }
 }
@@ -57,7 +57,7 @@ fun Context.iconButton(icon: String, description: String, action: () -> Unit) = 
 }
 fun Context.sectionCard() = LinearLayout(this).apply {
     orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(14), dp(16), dp(14))
-    background = rounded(PocketColors.panel, dp(14).toFloat())
+    background = rounded(FantasticPiMobileColors.panel, dp(14).toFloat())
 }
 fun Context.dialogField(view: android.view.View) = android.widget.FrameLayout(this).apply {
     setPadding(dp(24), dp(8), dp(24), dp(8))
@@ -65,7 +65,7 @@ fun Context.dialogField(view: android.view.View) = android.widget.FrameLayout(th
 }
 /** Vector strokes, not font glyphs: toolbar icons do not clip or change at large font scales. */
 private class ToolbarIcon(private val icon: String) : Drawable() {
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = PocketColors.text; strokeWidth = 1.8f; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = FantasticPiMobileColors.text; strokeWidth = 1.8f; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
     override fun draw(canvas: Canvas) {
         canvas.save(); canvas.translate(bounds.left.toFloat(), bounds.top.toFloat()); canvas.scale(bounds.width() / 24f, bounds.height() / 24f)
         when (icon) {

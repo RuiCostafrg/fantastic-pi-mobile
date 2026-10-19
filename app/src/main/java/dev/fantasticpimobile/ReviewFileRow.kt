@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import android.content.Context
 import android.graphics.Typeface
@@ -12,13 +12,13 @@ fun Context.reviewFileRow(path: String, status: String, scope: String, selectabl
     val row = LinearLayout(this).apply {
         gravity = Gravity.CENTER_VERTICAL; minimumHeight = dp(64)
         setPadding(dp(8), dp(10), dp(14), dp(10))
-        background = rounded(PocketColors.panel, dp(12).toFloat())
+        background = rounded(FantasticPiMobileColors.panel, dp(12).toFloat())
         isClickable = true; isFocusable = true; contentDescription = "View $scope diff: $path"
         setOnClickListener { onOpen() }
     }
     if (scope == "working" && selectable) row.addView(CheckBox(this).apply {
         contentDescription = "Select file: $path"; isChecked = checked; isEnabled = selectable
-        buttonTintList = android.content.res.ColorStateList.valueOf(PocketColors.accent)
+        buttonTintList = android.content.res.ColorStateList.valueOf(FantasticPiMobileColors.accent)
         minimumWidth = dp(48); minimumHeight = dp(48)
         setOnCheckedChangeListener { _, value -> onSelected(value) }
     }, LinearLayout.LayoutParams(dp(48), dp(48)))
@@ -29,8 +29,8 @@ fun Context.reviewFileRow(path: String, status: String, scope: String, selectabl
     val staging = if (scope != "working" || status.length != 2 || status == "??" || status[0] == ' ') ""
         else if (status[1] == ' ') " · staged" else " · staged & edited"
     labels.addView(textLabel(fileStatusLabel(status) + staging, 12f, true).apply {
-        if (fileStatusLabel(status) == "Added") setTextColor(PocketColors.added)
-        if (fileStatusLabel(status) == "Deleted" || fileStatusLabel(status) == "Conflict") setTextColor(PocketColors.removed)
+        if (fileStatusLabel(status) == "Added") setTextColor(FantasticPiMobileColors.added)
+        if (fileStatusLabel(status) == "Deleted" || fileStatusLabel(status) == "Conflict") setTextColor(FantasticPiMobileColors.removed)
     })
     row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))
     return row

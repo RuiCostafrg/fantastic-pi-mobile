@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import android.content.Intent
 import android.content.res.Configuration
@@ -23,7 +23,7 @@ class LayoutTest {
         instrumentation.runOnMainSync {
             for (fontScale in listOf(1f, 2f)) {
                 val config = Configuration(base.resources.configuration).apply { this.fontScale = fontScale }
-                val context = ContextThemeWrapper(base.createConfigurationContext(config), R.style.Theme_PiPocket)
+                val context = ContextThemeWrapper(base.createConfigurationContext(config), R.style.Theme_FantasticPiMobile)
                 val drawer = SessionDrawer(context, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
                 drawer.measure(View.MeasureSpec.makeMeasureSpec(context.dp(280), View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(context.dp(800), View.MeasureSpec.EXACTLY))
@@ -89,9 +89,9 @@ class LayoutTest {
         instrumentation.runOnMainSync {
             val base = instrumentation.targetContext
             val config = Configuration(base.resources.configuration).apply { fontScale = 2f }
-            val context = ContextThemeWrapper(base.createConfigurationContext(config), R.style.Theme_PiPocket)
+            val context = ContextThemeWrapper(base.createConfigurationContext(config), R.style.Theme_FantasticPiMobile)
             val filename = "VeryLongHumanReadableSettingsAndConnectionPreferencesScreen.kt"
-            val row = context.reviewFileRow("app/src/main/java/dev/pipocket/$filename", " M", "working", true, false, {}, {})
+            val row = context.reviewFileRow("app/src/main/java/dev/fantasticpimobile/$filename", " M", "working", true, false, {}, {})
             row.measure(View.MeasureSpec.makeMeasureSpec(context.dp(320), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
             row.layout(0, 0, row.measuredWidth, row.measuredHeight)
             fun check(view: View) {

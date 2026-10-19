@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import android.content.Intent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -28,12 +28,12 @@ class LiveStatusUiTest {
         val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(15)
         while (System.nanoTime() < until) { if (predicate()) return; Thread.sleep(100) }
         val root = instrumentation.uiAutomation.rootInActiveWindow
-        val detail = if (root?.packageName?.toString() == "dev.pipocket.reliability") texts(root).joinToString(" | ") else "foreground package: ${root?.packageName}"
+        val detail = if (root?.packageName?.toString() == "dev.fantasticpimobile.reliability") texts(root).joinToString(" | ") else "foreground package: ${root?.packageName}"
         fail("Timed out: $label; fixture UI: $detail")
     }
     @Test fun cachedApprovalWaitsForLiveEvidenceAndDisappearsWhenInterrupted() {
         val context = instrumentation.targetContext
-        assumeTrue(context.packageName == "dev.pipocket.reliability")
+        assumeTrue(context.packageName == "dev.fantasticpimobile.reliability")
         val server = ServerSocket(0, 8, java.net.InetAddress.getByName("127.0.0.1"))
         val pool = Executors.newCachedThreadPool()
         val gate = CountDownLatch(1)
@@ -70,7 +70,7 @@ class LiveStatusUiTest {
         }
         var activity: MainActivity? = null
         try {
-            context.deleteDatabase("pocket.sqlite")
+            context.deleteDatabase("fantastic-pi-mobile.sqlite")
             History(context).use { history ->
                 history.add("saved-approval", "pocket", "Fixture request")
                 history.update("saved-approval", "running", "", "Working", "{\"id\":\"approval\",\"method\":\"confirm\",\"title\":\"Old approval\"}")

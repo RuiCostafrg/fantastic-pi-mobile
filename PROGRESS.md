@@ -1,10 +1,20 @@
 # Fantastic Pi Mobile recovery and progress
 
-## Repository rename — validated, 2026-10-19
+## Android package and chat migration — completed, 2026-10-19
+
+- Built, installed and now running **`dev.fantasticpimobile`**, with matching Kotlin source packages, theme, database filename, Keystore alias and Logcat tag. Plugin/package/action names, private config variable names and dedicated tmux window also renamed.
+- Migrated **11 original chats / 21 original messages**, preserving IDs/content/organization/UI preferences and all **7 archived chats**. Re-encrypted pairing under the new package's Keystore key via private pipes/files; temporary import test APK removed. Source `dev.pipocket` retained, stopped, disabled to avoid duplicate launcher/accidental sends, and its saved files verified unchanged.
+- One source request was `sending` while the bridge was unavailable. Imported it as **interrupted**, retaining ID/text/history without replay. A migrated draft subsequently sent by the user was checked against its corresponding new message. Private backups and exact comparisons remain ignored under `bridge/data/maintenance-backups/android-package-migration-*/`.
+- Fresh process/listener/idle checks plus private backup preceded explicit bridge start. Verified ready/protocol v4/eight slots/zero active jobs. All **17 original task records unchanged**; a fresh user Test and the announced tools-free smoke request added two terminal tasks (19 total).
+- Actual **pi-droid foreground test PASS** in the new package: existing chats and archive visible, new chat Send returned **PI · DONE / FANTASTIC_PI_MOBILE_MIGRATION_OK**, force-stop/relaunch retained pairing/selection/result. New-package Android tests: **24/24** (20 history/status/drawer/review + 4 layout), plus explicit pairing import **1/1**. No voice or new screen-off/background guarantee claimed.
+- Host validation: **48/48 bridge tests**, **2/2 plugin tests**, **10/10 observer regressions**, real isolated tmux backup/restart/non-replay harness PASS, normal APK/test-APK build and lint PASS. Fixed symlink entry-point CLI detection with a red/green regression; renamed plugin token-environment filtering retains its privacy contract.
+- Physical checkout relocation remains separate: the new local entry point is still a symlink. Opaque saved session IDs/journal kinds/historical branches are not blindly rewritten. See `docs/repository-rename.md`.
+
+## Earlier branding-only rename validation — superseded by the package migration above
 
 - Fresh validation: **46/46 bridge tests**, **2/2 optional adapter tests**, **10/10 observer regressions**; normal and isolated APK/test-APK builds plus Android lint passed.
 - On-device isolated fixture: **24/24 instrumentation tests passed**, covering history upgrades, request status, drawer navigation, review UI and layout. Added a rename regression for the application label and drawer branding at 280dp / 100% and 200% font. First combined run had one existing activity-launch timeout; the layout class alone (4/4) and a complete repeat (24/24) passed without code changes. Timeout cause remains unestablished.
-- Normal `dev.pipocket` APK/history/pairing were not replaced; no bridge restart or model request. The renamed normal APK is built but not installed; no claim of a new full production end-to-end or background-survival test.
+- At that earlier stage, normal `dev.pipocket` APK/history/pairing were not replaced; no bridge restart or model request. The renamed normal APK is built but not installed; no claim of a new full production end-to-end or background-survival test.
 
 The project is now **Fantastic Pi Mobile**, repository `RuiCostafrg/fantastic-pi-mobile`.
 Use `~/projects/fantastic-pi-mobile` locally. This is a symlink to the retained
@@ -25,7 +35,7 @@ Updated: 2026-10-16 (reliability history below)
 
 - User explicitly approved the isolated offline/reconnect scenario. Rebuilt fixture APK/test APK with `-PreliabilityTests=true`; assemble/test-assemble/lint succeeded. Verified isolated package identities before installation; normal APK was not replaced.
 - Revised `scripts/check-reliability.py --scenario offline` **PASS** on actual Android: saved state, stable IDs, pending approval, parallel job, selected chat, draft, pairing and no duplicate RPC dispatch through listener offline/online. No application/harness fix was necessary for this scoped rerun.
-- Private before/after comparison: **five production app database/preferences files byte-identical and all 16 exact production task records unchanged**. Live bridge retained PID16072/eight slots/zero active work; no restart or model request. Both fixture packages removed; normal dev.pipocket reopened to original Screen-off reliability test chat with DONE markers.
+- Private before/after comparison: **five production app database/preferences files byte-identical and all 16 exact production task records unchanged**. Live bridge retained PID16072/eight slots/zero active work; no restart or model request. Both fixture packages removed; normal dev.fantasticpimobile reopened to original Screen-off reliability test chat with DONE markers.
 - No microphone/IME/security/network/battery changes. Gboard remained active; preflight ADBKeyboard warning was irrelevant. Private evidence: ignored `bridge/data/offline-lifecycle-20261016T211120Z/`; build log `~/.local/android-sdk/pocket-offline-fixture-build.log`.
 - This completes the scoped offline rerun, not the full lifecycle matrix, enhanced review-restart, provider-internet loss or background survival. Next agree the review-restart scenario; no new screen-off test armed. This and the diagnostics increment remain uncommitted/unpushed.
 
@@ -44,7 +54,7 @@ Updated: 2026-10-16 (reliability history below)
 
 - User authorized recovery and then commit/push. Fresh checks found no bridge/controller/RPC process, no configured-port listener, no owner lock and all 16 persisted tasks terminal. Existing work pane was preserved.
 - Created ignored private `bridge/data/maintenance-backups/pre-explicit-recovery-20261016T195743Z/` with online SQLite backup, config and saved sessions/worktrees, plus a private pre-start task/hash snapshot. No secrets/runtime evidence is included in Git.
-- Explicit `scripts/bridge-work start` restored detached `work:pocket-bridge`. Post-start status: **verified / ready**, protocol v4, eight slots, admissions open, zero jobs/reviews/nonterminal tasks. Server PID 16072 under pane controller 16057 (historical; rediscover before signalling).
+- Explicit `scripts/bridge-work start` restored detached `work:fantastic-pi-mobile-bridge`. Post-start status: **verified / ready**, protocol v4, eight slots, admissions open, zero jobs/reviews/nonterminal tasks. Server PID 16072 under pane controller 16057 (historical; rediscover before signalling).
 - Verified **all 16 exact task records and 143 saved session/worktree file hashes unchanged** after start. No new job submitted or old external command replayed. No Android UI/security/network setting changed. This supersedes the unavailable observation below; cause of the earlier bridge exit remains unknown.
 
 ## Resumed interrupted validation — 2026-10-16
@@ -73,11 +83,11 @@ Updated: 2026-10-16 (reliability history below)
 
 - Later home-Wi-Fi recovery: fresh secure pairing succeeded via private FIFO/stdin; ADB verified at `192.168.178.37:38681`. The previous bridge/lock/window were then found absent and the agent pane had been recreated. Cause remains unknown, not attributed to screen-off. No bridge process/RPC child/listener remained; all 14 exact task records and 85 saved file hashes matched. A fresh private `maintenance-backups/pre-explicit-recovery-*` backup preceded an explicit start. Latest server PID 16784/controller 16767, healthy protocol v4/eight slots, admissions open and zero active work. Older PIDs below are historical; rediscover before signalling. No uncertain work replayed.
 
-- Added `scripts/bridge-work` for status/start/pause/resume/stop in a new detached `work:pocket-bridge` window. Existing panes and shared wake-lock hooks are not changed. No automatic restart, replay, wake-lock release, stale-lock deletion or forced kill.
+- Added `scripts/bridge-work` for status/start/pause/resume/stop in a new detached `work:fantastic-pi-mobile-bridge` window. Existing panes and shared wake-lock hooks are not changed. No automatic restart, replay, wake-lock release, stale-lock deletion or forced kill.
 - Added authenticated admission maintenance: global model/review idle counts; pause serialized with new admissions; original-ID recovery, approvals and cancellation preserved. Stop requires owner identity/HTTP PID, both live counts and all Durable tasks terminal, a private idle backup and rechecks before SIGTERM.
 - **42 bridge tests passed**. `python scripts/check-bridge-work.py` passed against a temporary checkout/config/repository, fake Pi and isolated tmux socket: real ownership, untouched other pane, duplicate refusal, approval/review stop guards, backup, restart, unchanged tasks/workspace and no duplicate shell dispatch.
 - Before migration: original bridge PID 25933/parent 1, protocol v4/eight slots, all 14 tasks terminal and no direct bridge children. Actual Android power evidence showed a held Termux partial wake lock, plus its foreground service.
-- After user confirmation of the submission pause, guarded legacy stop made an idle backup at ignored `bridge/data/maintenance-backups/2026-10-16T15-12-47.048Z-12372/` and gracefully released storage. New bridge PID 12431 is under controller/pane PID 12416 in `work:pocket-bridge` (pane `%2`). Existing work pane `%0`/PID 28952 was preserved; the older `2` session was already absent when rediscovered. No tmux config/hook change.
+- After user confirmation of the submission pause, guarded legacy stop made an idle backup at ignored `bridge/data/maintenance-backups/2026-10-16T15-12-47.048Z-12372/` and gracefully released storage. New bridge PID 12431 is under controller/pane PID 12416 in `work:fantastic-pi-mobile-bridge` (pane `%2`). Existing work pane `%0`/PID 28952 was preserved; the older `2` session was already absent when rediscovered. No tmux config/hook change.
 - Authenticated health/owner, effective configuration/token, exact 14 saved task records and 85 session/worktree/config file hashes matched. Private before-state snapshot: ignored `bridge/data/pre-tmux-state.json`. Announced pi-droid check saw preserved blank New chat, Ready when you are and paired Send; no request was submitted. Gboard was not changed despite the ADBKeyboard preflight warning. Wake-lock ownership rechecked. Admissions explicitly resumed; zero active jobs/reviews.
 - First agreed isolated screen-off run was armed but lost wireless ADB during the waiting phase, before any Asleep observation: **no valid screen-off result**. Fixture cleanup ran; production retained PID 12431/healthy/14 terminal tasks. Secure rediscovery briefly returned a changed port but subsequent checks found no connected device/service. Asked user to verify Wireless debugging; no repeat armed or settings changed. Evidence: ignored `bridge/data/screen-off-check-20261016-172151/`. Synthetic harness power-control-flow and normal isolated tmux tests passed, but are not physical survival evidence.
 - **Remaining:** independent continuous Asleep evidence/sampler lifecycle diagnosis, longer or stress scenarios only by agreement; secure unlock remains user-controlled. The actual-app manual short scenario above is complete. No Android rebuild/install, microphone/IME/security/battery change, automatic replay, commit or push. See [docs/bridge-work.md](docs/bridge-work.md) for commands, private backups and recovery limits.
@@ -188,7 +198,7 @@ Updated: 2026-10-16 (reliability history below)
 - [x] Started an authenticated localhost bridge; generated token in ignored mode-0600 `.env` and paired through the app's password field without printing the token.
 - [x] Original queued Benfica question completed through the actual Pi provider, with its original request UUID.
 - [x] Answer and pairing survived app force-stop/relaunch.
-- [x] Read-only pi-droid tool invoked through the app: `android_screen_state` returned foreground `dev.pipocket`, unlocked. The persisted Pi session confirms a successful actual tool result.
+- [x] Read-only pi-droid tool invoked through the app: `android_screen_state` returned foreground `dev.fantasticpimobile`, unlocked. The persisted Pi session confirms a successful actual tool result.
 - [x] App Stop cancelled a running harmless `sleep 45` tool command, restored Send, and left no sleep process.
 
 ## Reproduction and regression evidence
@@ -213,7 +223,7 @@ After the fix on the installed APK:
 PASS: unpaired
 PASS: done    # latest answer includes Benfica
 PASS: done    # after force-stop/relaunch
-PASS: done    # latest answer includes dev.pipocket
+PASS: done    # latest answer includes dev.fantasticpimobile
 PASS: cancelled
 ```
 
@@ -221,13 +231,13 @@ The unpaired screen now displays WAITING FOR PAIRING and an enabled Pair bridge 
 
 ## Local deployment and diagnostics
 
-- App package: `dev.pipocket`.
+- App package: `dev.fantasticpimobile`.
 - Bridge URL: `http://127.0.0.1:8787`, loopback only.
 - Workspace: this repository (`~/projects/fantastic-pi-mobile`).
 - Private config: `bridge/.env` (ignored). Uses this recovery session's selected Pi provider/model, with low reasoning. `PI_ARGS` is local configuration, not in version control.
 - Bridge started with `nohup node --env-file=.env src/server.js`, from `bridge/`.
 - PID file: `bridge/data/bridge.pid`; logs: `bridge/data/bridge.log` (ignored).
-- Android logs: `adb logcat -s PiPocket:I`.
+- Android logs: `adb logcat -s FantasticPiMobile:I`.
 - Diagnostics contain event categories, job IDs, status, HTTP timing/status, and subprocess lifecycle metadata. No prompts, answers, tokens, headers, arbitrary URLs, or raw exception messages are intentionally logged.
 - Full SQLite/Pi conversation history still contains request/answer text as designed. Do not publish `bridge/data/`.
 - Android IME was temporarily switched to ADBKeyboard for testing; Gboard was restored after the test run.

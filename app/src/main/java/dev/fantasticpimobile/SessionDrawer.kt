@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import android.content.Context
 import android.graphics.Typeface
@@ -28,7 +28,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
     private var showingArchive = false
     init {
         orientation = VERTICAL; setPadding(context.dp(18), context.dp(16), context.dp(18), context.dp(12))
-        setBackgroundColor(PocketColors.panel)
+        setBackgroundColor(FantasticPiMobileColors.panel)
         addView(context.textLabel("✦ Fantastic Pi Mobile", 25f).apply { setTypeface(typeface, Typeface.BOLD) })
         addView(summary)
         addView(context.actionButton("＋ New chat", "New chat") {
@@ -37,9 +37,9 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
         search.apply {
             hint = "Search chats"; contentDescription = "Search chats"; textSize = 15f
             inputType = InputType.TYPE_CLASS_TEXT; isSingleLine = true
-            setTextColor(PocketColors.text); setHintTextColor(PocketColors.muted)
+            setTextColor(FantasticPiMobileColors.text); setHintTextColor(FantasticPiMobileColors.muted)
             setPadding(context.dp(14), context.dp(8), context.dp(14), context.dp(8))
-            background = rounded(PocketColors.background, context.dp(14).toFloat())
+            background = rounded(FantasticPiMobileColors.background, context.dp(14).toFloat())
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { renderRows() }
@@ -77,7 +77,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
                 val row = LinearLayout(context).apply {
                     gravity = Gravity.CENTER_VERTICAL
                     setPadding(context.dp(12), context.dp(9), context.dp(4), context.dp(9))
-                    background = rounded(if (session.id == selected) PocketColors.card else PocketColors.panel, context.dp(14).toFloat())
+                    background = rounded(if (session.id == selected) FantasticPiMobileColors.card else FantasticPiMobileColors.panel, context.dp(14).toFloat())
                     isClickable = true; isFocusable = true; contentDescription = "Open chat: ${session.title}"
                     setOnClickListener { select(session.id) }
                     setOnLongClickListener { menu(this, session); true }
@@ -85,7 +85,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
                 val labels = LinearLayout(context).apply { orientation = VERTICAL }
                 labels.addView(context.textLabel((if (session.pinned) "◆ " else "") + session.title, 15f, working).apply {
                     maxLines = 1; ellipsize = TextUtils.TruncateAt.END
-                    if (session.id == selected) { if (!working) setTextColor(PocketColors.accent); setTypeface(typeface, Typeface.BOLD) }
+                    if (session.id == selected) { if (!working) setTextColor(FantasticPiMobileColors.accent); setTypeface(typeface, Typeface.BOLD) }
                 })
                 val state = when {
                     session.archived -> "✓ Finished · archived"
@@ -103,7 +103,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
                 // Muted grey labels, not disabled controls: still readable and fully interactive.
                 row.addView(labels, LayoutParams(0, -2, 1f))
                 val more = context.iconButton("more", "Chat options: ${session.title}") {}
-                more.background = rounded(PocketColors.panel, context.dp(12).toFloat())
+                more.background = rounded(FantasticPiMobileColors.panel, context.dp(12).toFloat())
                 more.setOnClickListener { menu(more, session) }
                 row.addView(more, LayoutParams(context.dp(48), context.dp(48)))
                 rows.addView(row, LayoutParams(-1, -2).apply { bottomMargin = context.dp(4) })

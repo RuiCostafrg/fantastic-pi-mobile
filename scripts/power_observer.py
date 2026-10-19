@@ -127,8 +127,8 @@ class SharedPowerObserver:
         self.clock = clock
         self.runner = runner
         identifier = uuid.uuid4().hex
-        self.shared = Path(shared_parent) / ('.pi-pocket-power-' + identifier)
-        self.remote_script = '/data/local/tmp/pi-pocket-power-' + identifier + '.sh'
+        self.shared = Path(shared_parent) / ('.fantastic-pi-mobile-power-' + identifier)
+        self.remote_script = '/data/local/tmp/fantastic-pi-mobile-power-' + identifier + '.sh'
         self.samples = self.shared / 'samples.tsv'
         self.evidence = PowerEvidence(self.samples, clock)
 

@@ -2,7 +2,7 @@
 """Same-phone (Termux) lifecycle matrix using only the isolated reliability APK.
 
 Build/install with -PreliabilityTests=true first. Requires an explicit authorized
-ADB serial; never touches dev.pipocket, its pairing, bridge, or databases.
+ADB serial; never touches dev.fantasticpimobile, its pairing, bridge, or databases.
 No global network/battery/IME settings are changed. No models or microphone.
 """
 import argparse
@@ -18,7 +18,7 @@ import time
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = "dev.pipocket.reliability"
+PACKAGE = "dev.fantasticpimobile.reliability"
 TOKEN = "pocket-reliability-fixture-only-token"
 
 
@@ -114,7 +114,7 @@ def main():
         print("SKIP: secure/user-assisted lock test (no credential or lock settings changed)", flush=True)
 
     def instrument(phase, endpoint, approval="running", parallel="running"):
-        output = adb("shell", "am", "instrument", "-w", "-r", "-e", "class", "dev.pipocket.ReliabilityFixtureTest",
+        output = adb("shell", "am", "instrument", "-w", "-r", "-e", "class", "dev.fantasticpimobile.ReliabilityFixtureTest",
             "-e", "phase", phase, "-e", "endpoint", endpoint, "-e", "approval", approval, "-e", "parallel", parallel,
             PACKAGE + ".test/androidx.test.runner.AndroidJUnitRunner")
         if "OK (1 test)" not in output or "FAILURES" in output:
@@ -122,7 +122,7 @@ def main():
             raise AssertionError("Fixture instrumentation failed:\n" + output)
 
     def launch():
-        adb("shell", "am", "start", "-W", "-n", PACKAGE + "/dev.pipocket.MainActivity")
+        adb("shell", "am", "start", "-W", "-n", PACKAGE + "/dev.fantasticpimobile.MainActivity")
         time.sleep(5)  # >3 real foreground polling intervals; final SQLite assertions are authoritative.
 
     try:

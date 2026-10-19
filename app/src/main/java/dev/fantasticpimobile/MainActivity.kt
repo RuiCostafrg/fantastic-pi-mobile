@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import android.app.Activity
 import android.app.AlertDialog
@@ -77,11 +77,11 @@ class MainActivity : Activity() {
         val savedId = getSharedPreferences("chat-ui", MODE_PRIVATE).getString("selected", "pocket") ?: "pocket"
         selectedId = if (history.session(savedId) != null) savedId else "pocket"
         speechSessionId = savedInstanceState?.getString("speechSession")
-        window.statusBarColor = PocketColors.background
-        window.navigationBarColor = PocketColors.background
+        window.statusBarColor = FantasticPiMobileColors.background
+        window.navigationBarColor = FantasticPiMobileColors.background
         // FrameLayout honors inset padding; DrawerLayout positions children using margins instead.
         val insetFrame = FrameLayout(this).apply {
-            setBackgroundColor(PocketColors.background)
+            setBackgroundColor(FantasticPiMobileColors.background)
             setOnApplyWindowInsetsListener { view, insets ->
                 view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
                     insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
@@ -89,13 +89,13 @@ class MainActivity : Activity() {
             }
         }
         drawer = DrawerLayout(this).apply {
-            setBackgroundColor(PocketColors.background)
+            setBackgroundColor(FantasticPiMobileColors.background)
             setScrimColor(Color.argb(160, 0, 0, 0))
         }
         insetFrame.addView(drawer, FrameLayout.LayoutParams(-1, -1))
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), dp(12))
-            setBackgroundColor(PocketColors.background)
+            setBackgroundColor(FantasticPiMobileColors.background)
         }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(iconButton("menu", "Open chats") { hideKeyboard(); drawer.openDrawer(GravityCompat.START) }, LinearLayout.LayoutParams(dp(48), dp(48)))
@@ -128,11 +128,11 @@ class MainActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         val composer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(8), dp(12), dp(10))
-            background = rounded(PocketColors.panel, dp(20).toFloat())
+            background = rounded(FantasticPiMobileColors.panel, dp(20).toFloat())
         }
         draft = EditText(this).apply {
             hint = "Message this chat…"; contentDescription = "Message this chat"
-            setTextColor(PocketColors.text); setHintTextColor(PocketColors.muted); textSize = 16f
+            setTextColor(FantasticPiMobileColors.text); setHintTextColor(FantasticPiMobileColors.muted); textSize = 16f
             background = null; minLines = 1; maxLines = 4
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             setText(history.session(selectedId)?.draft.orEmpty())
@@ -154,7 +154,7 @@ class MainActivity : Activity() {
         }
         actions.addView(stop, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(8) })
         send = actionButton("Send") { submit() }.apply {
-            background = rounded(PocketColors.accent, dp(14).toFloat()); setTextColor(PocketColors.background)
+            background = rounded(FantasticPiMobileColors.accent, dp(14).toFloat()); setTextColor(FantasticPiMobileColors.background)
         }
         actions.addView(send, LinearLayout.LayoutParams(0, -2, 1f)); composer.addView(actions)
         root.addView(composer, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
@@ -297,7 +297,7 @@ class MainActivity : Activity() {
             for (job in jobs) {
                 messages.addView(textLabel("YOU\n${job.text}", 16f).apply {
                     setPadding(dp(16), dp(13), dp(16), dp(13)); setTextIsSelectable(true)
-                    background = rounded(PocketColors.card, dp(18).toFloat())
+                    background = rounded(FantasticPiMobileColors.card, dp(18).toFloat())
                 }, LinearLayout.LayoutParams(-1, -2).apply { leftMargin = dp(26); topMargin = dp(16) })
                 val unpaired = job.active && !connection.paired
                 val observed = observations.state(job.id)
@@ -307,7 +307,7 @@ class MainActivity : Activity() {
                 }
                 messages.addView(textLabel("PI · $state\n$answer", 16f).apply {
                     setPadding(dp(14), dp(14), dp(14), dp(14)); setTextIsSelectable(true)
-                    background = rounded(PocketColors.panel, dp(18).toFloat())
+                    background = rounded(FantasticPiMobileColors.panel, dp(18).toFloat())
                 }, LinearLayout.LayoutParams(-1, -2).apply { rightMargin = dp(12); topMargin = dp(10); bottomMargin = dp(10) })
             }
             renderedSession = selectedId; renderedJobs = jobs; renderedPaired = connection.paired; renderedStates = states
@@ -459,7 +459,7 @@ class MainActivity : Activity() {
             .setPositiveButton("Save", null).setNeutralButton("Test", null).setNegativeButton("Cancel", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                try { connection.save(url.text.toString(), token.text.toString()); observations.reset(); Log.i("PiPocket", "pairing saved"); dialog.dismiss(); render(); refresh() }
+                try { connection.save(url.text.toString(), token.text.toString()); observations.reset(); Log.i("FantasticPiMobile", "pairing saved"); dialog.dismiss(); render(); refresh() }
                 catch (error: Exception) { token.error = error.message }
             }
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {

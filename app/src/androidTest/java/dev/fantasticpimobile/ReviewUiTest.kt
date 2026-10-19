@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import android.text.style.ForegroundColorSpan
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -68,6 +68,6 @@ class ReviewUiTest {
             return diff.getSpans(start, start + marker.length, ForegroundColorSpan::class.java).first().foregroundColor
         }
         assertNotEquals(colorAt("-old"), colorAt("+new"))
-        assertEquals(PocketColors.accent, colorAt("+++ b/file"))
+        assertEquals(FantasticPiMobileColors.accent, colorAt("+++ b/file"))
     }
 }

@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import android.app.Activity
 import android.app.AlertDialog
@@ -17,7 +17,7 @@ fun Activity.openDiffViewer(path: String, patch: String, onDismiss: () -> Unit):
     val parsed = readableDiff(patch)
     val dialog = Dialog(this).apply { requestWindowFeature(Window.FEATURE_NO_TITLE) }
     val root = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setBackgroundColor(PocketColors.background)
+        orientation = LinearLayout.VERTICAL; setBackgroundColor(FantasticPiMobileColors.background)
         setPadding(dp(20), dp(12), dp(20), dp(16))
         setOnApplyWindowInsetsListener { view, insets ->
             view.setPadding(dp(20) + insets.systemWindowInsetLeft, dp(12) + insets.systemWindowInsetTop,
@@ -48,7 +48,7 @@ fun Activity.openDiffViewer(path: String, patch: String, onDismiss: () -> Unit):
         setPadding(dp(12), dp(12), dp(20), dp(16)); setLineSpacing(dp(3).toFloat(), 1f)
         minimumWidth = resources.displayMetrics.widthPixels - dp(40)
         text = diffReaderText(parsed); id = R.id.diff_code
-        setBackgroundColor(PocketColors.panel)
+        setBackgroundColor(FantasticPiMobileColors.panel)
     }
     val tools = LinearLayout(this)
     var raw = false
@@ -68,8 +68,8 @@ fun Activity.openDiffViewer(path: String, patch: String, onDismiss: () -> Unit):
     dialog.setContentView(root); dialog.setOnDismissListener { fileDetails?.dismiss(); onDismiss() }
     dialog.show()
     dialog.window?.apply {
-        setBackgroundDrawable(ColorDrawable(PocketColors.background))
-        statusBarColor = PocketColors.background; navigationBarColor = PocketColors.background
+        setBackgroundDrawable(ColorDrawable(FantasticPiMobileColors.background))
+        statusBarColor = FantasticPiMobileColors.background; navigationBarColor = FantasticPiMobileColors.background
         setLayout(-1, -1)
     }
     return dialog

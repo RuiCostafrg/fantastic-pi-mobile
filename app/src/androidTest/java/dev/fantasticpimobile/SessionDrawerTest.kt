@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import android.view.View
 import android.view.ViewGroup
@@ -39,7 +39,7 @@ class SessionDrawerTest {
         assertTrue(labels.contains("Reply ready · review or mark finished"))
         assertTrue(labels.contains("◉ Your feedback needed"))
         val working = views(drawer).filterIsInstance<TextView>().single { it.text.toString() == "Working task" }
-        assertEquals(PocketColors.muted, working.currentTextColor)
+        assertEquals(FantasticPiMobileColors.muted, working.currentTextColor)
         assertTrue(working.parent.let { it as View }.isEnabled)
     }
     @Test fun unverifiedWorkIsAttentionNotAWorkingOrApprovalClaim() = onMain {

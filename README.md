@@ -42,6 +42,16 @@ The app uses Android's built-in SQLite API (no hosted database). Pi Durable comm
 - Keystore-encrypted pairing token; loopback-only HTTP server; authenticated endpoints.
 - Gradle wrapper and a GitHub Actions template for APK builds, Android lint, and bridge integration tests.
 
+## Package migration verified (2026-10-19)
+
+The installed application ID is now **`dev.fantasticpimobile`**, not the former
+package. Existing chats were migrated with their IDs and organization preserved;
+pairing was re-encrypted under the new Android Keystore key. A real pi-droid
+foreground Send/response/relaunch check passed. See [migration evidence and
+rollback notes](docs/repository-rename.md) before migrating another installation.
+The old app is retained but disabled, not uninstalled; an uncertain old request was
+preserved as interrupted rather than replayed. This is not a background-survival guarantee.
+
 ## 1. Build / get the Android app
 
 Open this repository in Android Studio, use **JDK 17**, and build `app`.
@@ -91,7 +101,7 @@ cp .env.example .env
 # Edit .env:
 # PI_WORKSPACE=/absolute/path/to/your/trusted/project
 # PI_BIN=pi (or an absolute executable path)
-# PI_POCKET_TOKEN=<random secret generated below>
+# FANTASTIC_PI_MOBILE_TOKEN=<random secret generated below>
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
@@ -126,22 +136,22 @@ For an emulator with a bridge on your workstation, forward the port with `adb re
 
 ### Existing tmux `work` setup
 
-An explicit `scripts/bridge-work status|start|pause|resume|stop` workflow now supports a dedicated, detached `work:pocket-bridge` window, private idle backups and admission-paused graceful stops. It never changes other panes or owns/releases the shared wake lock. **Production migration and a user-assisted real-app screen-off/recovery test are complete:** a single 120-second bash job finished with the expected result and the same request ID after the reported screen-off interval. Independent Asleep instrumentation, longer/Doze/stress survival remain unverified. Do not start a second bridge or stop an active one; follow [the first-migration and recovery procedure](docs/bridge-work.md). Tmux/wake locks do not guarantee Android process survival, and there is no automatic restart/replay.
+An explicit `scripts/bridge-work status|start|pause|resume|stop` workflow now supports a dedicated, detached `work:fantastic-pi-mobile-bridge` window, private idle backups and admission-paused graceful stops. It never changes other panes or owns/releases the shared wake lock. **Production migration and a user-assisted real-app screen-off/recovery test are complete:** a single 120-second bash job finished with the expected result and the same request ID after the reported screen-off interval. Independent Asleep instrumentation, longer/Doze/stress survival remain unverified. Do not start a second bridge or stop an active one; follow [the first-migration and recovery procedure](docs/bridge-work.md). Tmux/wake locks do not guarantee Android process survival, and there is no automatic restart/replay.
 
 ### Optional pi-droid host-management plugin
 
-The [Pocket plugin guide](plugins/pi-droid-pocket/README.md) explains installation,
-configuration and the `pocket.status|start|pause|resume|stop` actions. It is **not
+The [Fantastic Pi Mobile plugin guide](plugins/pi-droid-fantastic-pi-mobile/README.md) explains installation,
+configuration and the `fantastic-pi-mobile.status|start|pause|resume|stop` actions. It is **not
 activated automatically**. Check `android_plugin_status` first; after explicit
 installation/configuration and reload, invoke these through
-`android_plugin_action` with plugin `pocket` and action such as `pocket.status`.
+`android_plugin_action` with plugin `fantastic-pi-mobile` and action such as `fantastic-pi-mobile.status`.
 Status takes `{}`; mutations require `{ "confirmed": true }` plus human approval.
 Do not use an autonomous cycle to manage the bridge: heartbeat is deliberately
 a no-op. Host-local paths refer to the pi-droid host, not the selected ADB phone.
 
 Reusable identity and passive power-observation helpers are TypeScript library
 APIs in pi-droid; see its `docs/local-reliability-helpers.md`. They are not new
-agent tools or a replacement for Pocket's Python fixture harness. No automatic
+agent tools or a replacement for Fantastic Pi Mobile's Python fixture harness. No automatic
 pairing, restart, stale-lock cleanup, wake/unlock or work replay is provided.
 Physical screen-off acceptance remains separate and unverified by this migration.
 
@@ -233,10 +243,10 @@ Integration tests use real Pi Durable SQLite storage and a deterministic fake RP
 
 ### Diagnostics and on-device checks
 
-Android diagnostics use the `PiPocket` Logcat tag:
+Android diagnostics use the `FantasticPiMobile` Logcat tag:
 
 ```sh
-adb logcat -s PiPocket:I
+adb logcat -s FantasticPiMobile:I
 ```
 
 The bridge writes JSON metadata to stderr: HTTP route category/status/duration, job IDs/state transitions, and Pi subprocess acceptance/completion. Redirect stderr to a private, ignored local file if needed. The local test deployment uses `bridge/data/bridge.log`. Diagnostics deliberately omit tokens, Authorization headers, arbitrary URLs, prompts, answers, and raw exception messages. These are troubleshooting logs, not a full audit trail; existing SQLite/Pi session history still contains conversation content. Log files currently need manual retention/rotation.
@@ -256,12 +266,12 @@ These scripts require Python and authorized ADB; `ANDROID_SERIAL` selects a devi
 
 ### Layout
 
-- `app/src/main/java/dev/pipocket/` — Kotlin activity, SQLite history, HTTP client and Keystore token storage.
+- `app/src/main/java/dev/fantasticpimobile/` — Kotlin activity, SQLite history, HTTP client and Keystore token storage.
 - `bridge/src/store.js` — Durable task definition and persisted request state.
 - `bridge/src/rpc.js` — isolated Pi subprocess and JSONL protocol.
 - `bridge/src/workspaces.js` — stable per-chat Git worktrees and validation.
 - `bridge/src/review.js` — repository snapshots, diffs, selected commits, test commands, and guarded local integration.
-- `app/src/main/java/dev/pipocket/ChangesActivity.kt` — native review/confirmation screen.
+- `app/src/main/java/dev/fantasticpimobile/ChangesActivity.kt` — native review/confirmation screen.
 - `bridge/src/server.js` — authenticated loopback API.
 - `bridge/test/` — deterministic integration suite.
 - `ci/build-and-test.yml` — ready-to-enable Android build/lint/APK artifact and bridge tests.
@@ -274,7 +284,7 @@ Every route requires `Authorization: Bearer <token>`.
 |---|---|---|
 | GET | `/health` | Authenticated liveness, `protocolVersion: 4`, `processId`, `worktreeIsolation: true`, `changesReview: true`, `maxConcurrent` |
 | GET / POST | `/v1/maintenance` | Global model/review admission state and idle counts; POST `{paused: boolean}` pauses/resumes new IDs without cancelling work or blocking exact-ID recovery |
-| POST | `/v1/jobs` | Submit `{requestId, text, sessionId}`; returns persisted job. Omitting `sessionId` uses legacy `pocket` |
+| POST | `/v1/jobs` | Submit `{requestId, text, sessionId}`; returns persisted job. Omitting `sessionId` uses legacy `fantastic-pi-mobile` |
 | GET | `/v1/jobs/:id` | Poll status, answer, tool progress, pending dialog |
 | POST | `/v1/jobs/:id/ui` | Respond with matching dialog `id` and `confirmed`, `value`, or `cancelled` |
 | POST | `/v1/jobs/:id/cancel` | Stop a task; no rollback |

@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -55,10 +55,10 @@ fun coloredDiff(text: String): SpannableString {
     var offset = 0
     for (line in text.split('\n')) {
         val color = when {
-            line.startsWith("+++") || line.startsWith("---") || line.startsWith("@@") || line.startsWith("diff ") -> PocketColors.accent
-            line.startsWith("+") -> PocketColors.added
-            line.startsWith("-") -> PocketColors.removed
-            else -> PocketColors.text
+            line.startsWith("+++") || line.startsWith("---") || line.startsWith("@@") || line.startsWith("diff ") -> FantasticPiMobileColors.accent
+            line.startsWith("+") -> FantasticPiMobileColors.added
+            line.startsWith("-") -> FantasticPiMobileColors.removed
+            else -> FantasticPiMobileColors.text
         }
         if (line.isNotEmpty()) result.setSpan(ForegroundColorSpan(color), offset, offset + line.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         offset += line.length + 1
@@ -112,11 +112,11 @@ fun diffReaderText(diff: ReadableDiff): CharSequence {
             "${line.before?.toString().orEmpty().padStart(digits)} ${line.after?.toString().orEmpty().padStart(digits)} ${if (line.kind == '-') '−' else line.kind}  "
         } else "  "
         result.append(prefix).append(line.content).append('\n')
-        val color = when (line.kind) { '+' -> PocketColors.added; '-' -> PocketColors.removed; '@' -> PocketColors.accent; else -> PocketColors.muted }
+        val color = when (line.kind) { '+' -> FantasticPiMobileColors.added; '-' -> FantasticPiMobileColors.removed; '@' -> FantasticPiMobileColors.accent; else -> FantasticPiMobileColors.muted }
         result.setSpan(ForegroundColorSpan(color), start, if (line.kind in listOf('@', 'i')) result.length else start + prefix.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         when (line.kind) {
-            '+' -> result.setSpan(DiffBackground(PocketColors.addedBackground), start, result.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            '-' -> result.setSpan(DiffBackground(PocketColors.removedBackground), start, result.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            '+' -> result.setSpan(DiffBackground(FantasticPiMobileColors.addedBackground), start, result.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            '-' -> result.setSpan(DiffBackground(FantasticPiMobileColors.removedBackground), start, result.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
     }
     return result

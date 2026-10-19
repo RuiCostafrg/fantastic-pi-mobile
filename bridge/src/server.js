@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { resolve } from 'node:path';
+import { realpath } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { openStore, validSessionId, DEFAULT_MAX_CONCURRENT } from './store.js';
 import { log } from './log.js';
@@ -72,9 +73,9 @@ export function makeServer(store, token, logger = log) {
   });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const token = process.env.PI_POCKET_TOKEN;
-  if (!token || token.length < 32 || token.startsWith('replace-')) throw new Error('Set PI_POCKET_TOKEN to a random secret of at least 32 characters');
+if (process.argv[1] && import.meta.url === pathToFileURL(await realpath(resolve(process.argv[1]))).href) {
+  const token = process.env.FANTASTIC_PI_MOBILE_TOKEN;
+  if (!token || token.length < 32 || token.startsWith('replace-')) throw new Error('Set FANTASTIC_PI_MOBILE_TOKEN to a random secret of at least 32 characters');
   if (!process.env.PI_WORKSPACE) throw new Error('Set PI_WORKSPACE to your trusted project directory');
   const extraArgs = JSON.parse(process.env.PI_ARGS ?? '[]');
   if (!Array.isArray(extraArgs) || !extraArgs.every(x => typeof x === 'string')) throw new Error('PI_ARGS must be a JSON string array');

@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.PiPocket" parent="android:style/Theme.Material.NoActionBar">
+    <style name="Theme.FantasticPiMobile" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">#B4BEFE</item>
         <item name="android:colorControlActivated">#B4BEFE</item>

@@ -35,7 +35,7 @@ Scope: a real shell-dispatch marker and exact-ID non-replay across a **graceful 
 
 ## Scoped offline lifecycle rerun — passed (2026-10-16 21:11 UTC)
 
-With explicit user agreement, rebuilt the separate `dev.pipocket.reliability` and `.test` APKs using `-PreliabilityTests=true`; `assembleDebug assembleDebugAndroidTest lintDebug` passed. Verified both APK identities before installing. Build log: `~/.local/android-sdk/pocket-offline-fixture-build.log`.
+With explicit user agreement, rebuilt the separate `dev.fantasticpimobile.reliability` and `.test` APKs using `-PreliabilityTests=true`; `assembleDebug assembleDebugAndroidTest lintDebug` passed. Verified both APK identities before installing. Build log: `~/.local/android-sdk/pocket-offline-fixture-build.log`.
 
 `python scripts/check-reliability.py --serial <current-authorized-serial> --scenario offline` **passed** with the revised app-only observation setup. Actual fixture APK preserved saved running/pending records, exact IDs, selected chat, unsent draft and pairing across the local HTTP listener outage; afterward completion/reconnection preserved the parallel job and did not duplicate either RPC launch. This is one passing scoped rerun, not proof the whole matrix is deterministic or that provider internet loss works. Freshness/dialog visibility remains separately covered by LiveStatusUiTest, not inferred from persisted history.
 
@@ -59,14 +59,14 @@ Failure state is retained privately at `/data/data/com.termux/files/usr/tmp/pock
 
 **Announce disruptive phone tests before running them.** The user found the rapid lifecycle loop's starts/stops confusing. Prefer fresh pi-droid observation and deliberately scoped interactions; do not resume the full loop automatically. The test APK has the normal visible app label, despite its separate application ID.
 
-Build with the README/PROGRESS toolchain, adding `-PreliabilityTests=true` to `assembleDebug assembleDebugAndroidTest lintDebug`. Inspect package identity before installing **both** APKs. This opts into separate packages `dev.pipocket.reliability` and `.test`; fixture tests refuse to seed/reset the production package. Default builds remain `dev.pipocket`. APK output paths are shared, so rebuild without the property before normal deployment.
+Build with the README/PROGRESS toolchain, adding `-PreliabilityTests=true` to `assembleDebug assembleDebugAndroidTest lintDebug`. Inspect package identity before installing **both** APKs. This opts into separate packages `dev.fantasticpimobile.reliability` and `.test`; fixture tests refuse to seed/reset the production package. Default builds remain `dev.fantasticpimobile`. APK output paths are shared, so rebuild without the property before normal deployment.
 
 Focused real UI check and normal regression suite:
 
 ```sh
 adb -s <authorized-serial> shell am instrument -w \
-  -e class dev.pipocket.LiveStatusUiTest,dev.pipocket.RequestStatusTest,dev.pipocket.HistoryTest,dev.pipocket.LayoutTest,dev.pipocket.ReviewUiTest,dev.pipocket.SessionDrawerTest \
-  dev.pipocket.reliability.test/androidx.test.runner.AndroidJUnitRunner
+  -e class dev.fantasticpimobile.LiveStatusUiTest,dev.fantasticpimobile.RequestStatusTest,dev.fantasticpimobile.HistoryTest,dev.fantasticpimobile.LayoutTest,dev.fantasticpimobile.ReviewUiTest,dev.fantasticpimobile.SessionDrawerTest \
+  dev.fantasticpimobile.reliability.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
 Only after agreeing visible lifecycle transitions with the user:
@@ -80,7 +80,7 @@ The matrix creates a disposable Git repository and localhost bridge using fake P
 
 ## Next increment: use the existing tmux + Termux wake-lock setup
 
-**Update:** explicit management tooling and admission-paused graceful-stop tests are implemented; **production migration, foreground verification and a user-assisted actual-app screen-off/recovery test are complete**. A single real `sleep 120` job was running before the user's off interval, completed once with its expected marker and same UUID, and showed DONE in Fantastic Pi Mobile after return. Independent continuous Asleep instrumentation and longer/Doze/stress scenarios remain unverified. See [bridge-work.md](bridge-work.md) for exact evidence, commands, the initial legacy-server migration gate and recovery. After user confirmation, the idle bridge was privately backed up and gracefully migrated to a new dedicated `work:pocket-bridge` window, preserving all 14 task records, 85 state/config/session/worktree file hashes and the existing work pane. Actual Termux wake-lock ownership was observed before and after migration. Existing tmux configuration/hooks were unchanged. The findings and sequence below record the original proposal.
+**Update:** explicit management tooling and admission-paused graceful-stop tests are implemented; **production migration, foreground verification and a user-assisted actual-app screen-off/recovery test are complete**. A single real `sleep 120` job was running before the user's off interval, completed once with its expected marker and same UUID, and showed DONE in Fantastic Pi Mobile after return. Independent continuous Asleep instrumentation and longer/Doze/stress scenarios remain unverified. See [bridge-work.md](bridge-work.md) for exact evidence, commands, the initial legacy-server migration gate and recovery. After user confirmation, the idle bridge was privately backed up and gracefully migrated to a new dedicated `work:fantastic-pi-mobile-bridge` window, preserving all 14 task records, 85 state/config/session/worktree file hashes and the existing work pane. Actual Termux wake-lock ownership was observed before and after migration. Existing tmux configuration/hooks were unchanged. The findings and sequence below record the original proposal.
 
 **User-selected direction; not verified for survival.** Prefer building on the existing Termux setup before introducing another Android background mechanism. Notifications remain a separate proposed increment.
 

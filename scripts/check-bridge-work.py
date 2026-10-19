@@ -55,7 +55,7 @@ def main(options):
         node = shutil.which('node')
         # Node itself can be PI_BIN; PI_ARGS supplies the fake peer before RPC flags.
         (checkout / 'bridge/.env').write_text('\n'.join([
-            'PI_POCKET_TOKEN=' + token, 'PI_WORKSPACE=' + str(repo),
+            'FANTASTIC_PI_MOBILE_TOKEN=' + token, 'PI_WORKSPACE=' + str(repo),
             'PI_DEFAULT_BRANCH=main', 'PORT=' + str(port), 'PI_BIN=' + node,
             "PI_ARGS='" + json.dumps([str(fake)]) + "'", 'PI_MAX_CONCURRENT=8',
         ]) + '\n')
@@ -107,7 +107,7 @@ def main(options):
                 config_path.write_text(original_config.replace('PORT=' + str(port), 'PORT=1'))
                 unavailable = json.loads(run_ok('status').stdout)
                 assert not unavailable['ready'] and unavailable['reason'] == 'health-unavailable'
-                config_path.write_text(original_config + 'PI_POCKET_TMUX_SESSION=missing_fixture_session\n')
+                config_path.write_text(original_config + 'FANTASTIC_PI_MOBILE_TMUX_SESSION=missing_fixture_session\n')
                 outside_tmux = json.loads(run_ok('status').stdout)
                 assert outside_tmux['ready'] and outside_tmux['tmuxAvailable'] is False
             finally:
@@ -223,7 +223,7 @@ def main(options):
             assert token not in json.dumps(events)
             backups = list((checkout / 'bridge/data/maintenance-backups').iterdir())
             assert len(backups) == 1 and (backups[0] / 'assistant.sqlite').exists()
-            tmux('kill-window', '-t', 'work:pocket-bridge')  # Only the disposable exited window.
+            tmux('kill-window', '-t', 'work:fantastic-pi-mobile-bridge')  # Only the disposable exited window.
             run_ok('start')
             assert persisted_records() == before
             assert api('/v1/jobs/fixture-approval')['workspace'] == workspace

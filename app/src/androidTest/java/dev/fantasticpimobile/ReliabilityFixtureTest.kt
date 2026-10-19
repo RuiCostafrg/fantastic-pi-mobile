@@ -1,4 +1,4 @@
-package dev.pipocket
+package dev.fantasticpimobile
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -13,11 +13,11 @@ class ReliabilityFixtureTest {
     @Test fun fixture() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
-        assumeTrue(context.packageName == "dev.pipocket.reliability")
+        assumeTrue(context.packageName == "dev.fantasticpimobile.reliability")
         val args = InstrumentationRegistry.getArguments()
         when (args.getString("phase")) {
             "seed" -> {
-                context.deleteDatabase("pocket.sqlite")
+                context.deleteDatabase("fantastic-pi-mobile.sqlite")
                 context.getSharedPreferences("chat-ui", 0).edit().clear().commit()
                 context.getSharedPreferences("review-requests", 0).edit().clear().commit()
                 Connection(context).save(args.getString("endpoint")!!, "pocket-reliability-fixture-only-token")
