@@ -1,5 +1,13 @@
 # Fantastic Pi Mobile recovery and progress
 
+## Run one small step at a time
+
+For implementation sessions, read [docs/next-steps.md](docs/next-steps.md).
+It splits the first coding milestone into nine bounded steps with completion
+criteria. Start with **step 01 only**; update its evidence/status and stop before
+moving to another step. The roadmap below is context, not one large work request.
+No implementation step has been completed merely by writing these documents.
+
 ## Current product goal and coding-first roadmap — 2026-10-19
 
 **This section is the current priority order.** Older dated plans, PIDs, package names,
