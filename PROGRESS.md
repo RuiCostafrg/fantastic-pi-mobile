@@ -1,5 +1,207 @@
 # Fantastic Pi Mobile recovery and progress
 
+## Current product goal and coding-first roadmap — 2026-10-19
+
+**This section is the current priority order.** Older dated plans, PIDs, package names,
+“next” steps and uncommitted-work statements below are historical unless explicitly
+reconfirmed. This is a roadmap, not a claim that the unchecked features exist.
+
+### Goal: my own durable personal agent, with T3 Code-like coding workflows
+
+Build one personal agent with multiple independent conversations: general chat,
+research, personal knowledge and project coding. Android, a terminal/Pi CLI
+integration, a future website, and eventually Discord/Slack mentions are different
+clients of that agent, not separate bots that copy histories between themselves.
+
+**User-selected order: make the app useful for coding in other projects first;
+then use that working coding app to build the richer chat/personal-agent experience.**
+Keep the accepted mobile UI and existing review/approval/non-replay safeguards.
+Use T3 Code as a workflow reference, not as a requirement to clone its entire UI.
+Current deployment is local on the existing Android phone/Termux; the earlier
+“iPhone” wording was not a verified iOS deployment. Actual iPhone-local hosting
+would require a separately scoped design and platform checks.
+
+### Durability contract: stored state is not a running process
+
+- SQLite/Pi Durable persist accepted work, stable IDs, dispatch intent and results;
+  they do not keep Android/Termux alive or execute jobs while every host is stopped.
+- The bridge/worker must have an independently owned lifecycle: closing Android UI,
+  disconnecting a terminal, or closing a future CLI client must not stop admitted
+  work while the bridge and its required processes remain alive.
+- Reopening a client must recover conversations, drafts/selection as appropriate,
+  runs, results and current approval/status evidence without submitting a new job.
+- If the bridge dies, saved history must survive. Recovery reconciles persisted
+  intent with actual execution: undispatched work may resume; uncertain dispatched
+  shell/device/network/repository actions remain interrupted/unknown until checked.
+  Never advertise “exactly once external effects” or silently replay uncertain work.
+- A deliberately user-closed CLI conversation is not permission to cancel another
+  client's run; cancellation targets an explicit run ID. Stopping the host/Termux
+  is different from disconnecting a client.
+- One active owner executes against a local Durable journal. Do not sync/copy a
+  live SQLite database between devices or open it as multiple executing harnesses.
+  PC/web clients initially connect to that owner; offline multi-writer sync is not
+  part of the first milestone. Phone hosting must be reachable/alive for remote use.
+
+### Milestone 1 — coding-ready across projects (next implementation priority)
+
+Existing capabilities to reuse: multiple chat IDs, one active job per chat,
+configurable concurrency, isolated per-chat worktrees, Changes/diffs, explicit
+selected-file commits, recorded test evidence and guarded local merges. These
+already exist; the next increment connects them to an intentional project workflow.
+
+- [ ] **Project selection per conversation.** Register/select a trusted local Git
+  repository, show its identity/location/default branch and bind the chat to it.
+  Today the bridge is configured around one global `PI_WORKSPACE`; do not pretend
+  multi-project selection already exists. A configured offline local repository
+  remains valid; a GitHub remote is not mandatory.
+- [ ] Persist the project binding alongside accepted requests. Preserve legacy chats
+  by assigning their existing repository/worktree without changing request IDs or
+  copying their work into a different checkout. Unknown bindings fail clearly.
+- [ ] New chats can select another project; existing chats cannot silently switch
+  repositories under a running job, pending approval or unresolved review action.
+  Show which project/branch a coding request will operate on before Send.
+- [ ] Preserve per-chat worktree isolation and original-checkout safety. Concurrent
+  projects/chats must not share working files or transplant approvals/context.
+  Missing repositories, changed branches and absent dependencies fail explicitly;
+  there is no automatic fallback to an arbitrary shared directory.
+- [ ] Make code review practical on the phone: discover changes, inspect readable
+  diffs, run an exact approved test command, inspect actual exit/output/revision,
+  commit selected files and explicitly integrate. Reuse existing controls; improve
+  only proven friction. Committing, merging, pushing and creating a PR are distinct
+  actions; no automatic publishing from a normal chat response.
+- [ ] Keep runtime state/secrets outside public Git changes and disposable worktrees.
+  Document that a worktree does not automatically inherit ignored `.env` files or
+  installed dependencies, and that filesystem/tools/phone remain shared resources.
+- [ ] **Code the app using the app, safely.** Develop in an isolated branch/worktree,
+  build/test away from the serving runtime, review then explicitly promote/install.
+  A model must not replace its own live bridge or restart production mid-task.
+  Enable/verify the existing CI template only after checking workflow permissions;
+  a CI watcher/release/install flow follows, not an unapproved auto-update loop.
+- [ ] **Acceptance:** use two disposable local repositories and separate chats;
+  edit/test/review in each, verify no cross-project writes, preserve unrelated
+  staging, close/reopen the Android client and recover the same IDs/results. Also
+  verify old migrated chats still find their existing worktrees. Run deterministic
+  regressions first, then one announced pi-droid actual-app scenario. No test merge
+  should touch the real project default branch.
+
+### Milestone 2 — one durable conversation core, Android + terminal
+
+- [ ] Define the small shared interface for listing/opening conversations, sending
+  messages with idempotency keys, reading/streaming events, answering an exact
+  approval and stopping a run. Keep client-specific rendering out of execution.
+- [ ] Decide and implement canonical ownership: the core owns conversation/message
+  IDs, ordering, project bindings, run state and approval records; Android history
+  becomes a reconciled cache plus appropriate local UI state. Current Android
+  SQLite, Durable task journal and per-chat Pi CLI session files are not yet this
+  unified model. Migrate existing data with backups and comparison tests.
+- [ ] Add a minimal terminal client or explicit Pi extension integration against the
+  same core. Standard Pi CLI does not automatically attach to a Durable conversation;
+  distinguish live attachment from session import/export or handoff. Do not replace
+  the functioning real-Pi tool environment just to make the diagrams simpler.
+- [ ] Persist/reconcile event cursors, messages and approvals so reconnects do not
+  duplicate a Send, lose results or revive obsolete approval controls. Receiving
+  the same external event twice must not create two runs.
+- [ ] **Acceptance:** start a coding conversation on Android, continue it through
+  the terminal integration, disconnect that client while work runs, reopen Android
+  and see the same conversation/result exactly once. Test simultaneous sends,
+  offline reconnect, orderly restart and uncertain dispatch handling separately.
+
+### Milestone 3 — richer personal chat, knowledge and research
+
+After the coding foundation is useful, build these features through that app:
+
+- [ ] Personal conversations without a mandatory Git repository. Use an explicitly
+  designed personal workspace/tool policy, not a shared-checkout fallback for failed
+  coding setup. Keep multiple independent chats and an understandable agent identity.
+- [ ] **Search yesterday:** opt-in retrieval across approved app/Pi conversations,
+  project docs and notes, returning exact source/session links. Start with lexical
+  full-text search, identifiers and recency; evaluate semantic retrieval later.
+- [ ] **Remember this:** explicit scoped memory with source, verification state,
+  correction/deletion and user-visible proposed text. Separate user preferences,
+  observed facts, model inferences and stale operating evidence. Do not inject every
+  private conversation into every chat or treat a wiki page as trusted instructions.
+- [ ] Trial `pi-para` in an isolated config/wiki/RPC session before implementing a
+  second knowledge engine. Check Android native dependencies, Pi API compatibility,
+  eight-process concurrency and scheduler lifecycle. No global install/automatic
+  capture/production dependency bump as a side effect of research.
+- [ ] Research pipeline: one explicit search backend initially, primary-source
+  fetching, bounded downloads/conversion, immutable source snapshots, citations,
+  contradictions and uncertainty. Local-first retrieval must not silently upload
+  a private query to a public provider. Add PDF/document conversion on a tested corpus.
+- [ ] Android share inbox: text/URLs first, then user-shared screenshots/files with
+  URI permissions and import limits. Offer Save/Explain/Compare/Extract tasks/Research;
+  receiving content creates a draft, not automatic execution of its instructions.
+- [ ] Open loops and decision receipts: source-linked unresolved questions, next
+  checks and evidence-based completion. Add failure-to-runbook proposals, stale-doc
+  contradiction reports and a lightweight project cockpit before a full task board.
+- [ ] Improve response rendering/streaming, attachments and optional interactive
+  reports/checklists/calculators. Use sanitized/constrained artifacts; no arbitrary
+  generated JavaScript-to-native shell bridge. Voice/TTS remain opt-in and voice
+  needs a user-present microphone test.
+- [ ] **Acceptance:** a 20-question evidence set including known facts, contradictions
+  and unanswerable questions; measure answer/source correctness, abstention, latency
+  and prompt cost. Test actual share/search/save flows with pi-droid. Model confidence
+  and a recently edited page are not substitutes for evidence.
+
+### Milestone 4 — background usefulness and safe event-driven work
+
+Background reliability supports the coding milestones too; do not postpone observed
+correctness defects until all chat features exist. Agree disruptive phone scenarios
+one at a time; never force-stop Termux from the same-phone testing agent.
+
+- [ ] Finish the revised complete lifecycle matrix and awake sampler-lifetime
+  diagnosis. Obtain independent Asleep evidence before claiming instrumented
+  screen-off success; test longer/parallel/approval scenarios, abrupt loss and
+  provider-network failure within explicitly agreed scopes. Prior short manual
+  screen-off success is not Doze/all-night survival proof.
+- [ ] Persistent completion/failure/approval notifications that open the correct
+  conversation, with deduplication/reconciliation after reconnect/restart and private
+  lock-screen defaults. Notification delivery is separate from keeping Termux alive.
+- [ ] Event inbox and bounded CI watchers/reminders: deadlines, stable delivery IDs,
+  visible cost and Stop. Event arrival must not authorize a deploy/send/install.
+  “Build while I am away” first means notify and let the user review/install.
+- [ ] Later opt-in capture/morning briefs and “done when this approved check passes”
+  loops. Bound rounds/time/spend, scope tool permissions, record failures, and do not
+  move a successful-capture watermark merely because capture was submitted.
+- [ ] Research Android/Termux constraints before promising foreground-service or
+  startup behavior. A service in this app does not inherently protect another
+  package's Termux worker. Retain one shared wake-lock owner; no competing unlocks.
+
+### Later clients and infrastructure — designed for, not immediate scope
+
+- [ ] PC Pi/terminal and website clients connect to the same authenticated core;
+  decide explicit host migration versus remote execution. Show where commands/files
+  live. SSH offload is useful for heavy builds/indexing; loss is unknown execution
+  state, not permission to run the command again somewhere else.
+- [ ] Discord/Slack adapters map a thread/channel mention to a scoped conversation
+  and authenticated person. Deduplicate platform event IDs; restrict bot loops,
+  attachments and spend. A mention is not blanket execution approval, and shared
+  channels must not expose private chats, wiki scopes or provider secrets.
+- [ ] Backup/export/restore drills, history/index/log retention, release signing,
+  installable releases, remaining lint/icon/translations and later conflict/PR/push
+  workflows. Reuse existing capabilities rather than building every feature at once.
+- [ ] Physical repository-folder relocation remains a separate tested migration
+  (`docs/repository-rename.md`), not a prerequisite for coding in other repositories.
+  Do not blindly rewrite opaque saved session/journal/branch IDs for cosmetic naming.
+- [ ] Do not adopt an SDK-28 bundled runtime, rewrite the native UI, build dozens of
+  search adapters or launch autonomous agent teams as shortcuts to this roadmap.
+  Consider any runtime experiment separately with licensing/security/rollback checks.
+
+### Research and evidence to carry forward
+
+[pi-phone ideas research](docs/pi-phone-ideas-research.md) captures the full source-
+linked comparison, high-leverage experiments and caveats: knowledge/wiki reuse,
+search/fetch/documents, open questions, share capture, screenshot-to-knowledge,
+contradiction radar, decision/runbook capture, two-sided research, CI events,
+interactive artifacts, remote offload, bounded goals and opt-in morning briefs.
+Their named Pi Pocket upstream is not this repository; do not treat it as a safe
+upstream upgrade. The source review did not run upstream code or prove its claims.
+
+For implementation, start with **Milestone 1: project-bound coding conversations**.
+This documentation update does not implement multi-project support, change the
+running bridge, grant new permissions, install packages or authorize unannounced
+phone tests. Current completed functionality/evidence follows below.
+
 ## Android package and chat migration — completed, 2026-10-19
 
 - Built, installed and now running **`dev.fantasticpimobile`**, with matching Kotlin source packages, theme, database filename, Keystore alias and Logcat tag. Plugin/package/action names, private config variable names and dedicated tmux window also renamed.
