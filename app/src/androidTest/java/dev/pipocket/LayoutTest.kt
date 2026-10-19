@@ -17,6 +17,30 @@ import org.junit.runner.RunWith
 class LayoutTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
 
+    @Test fun renamedAppLabelAndDrawerFitAtNarrowWidthsAndLargeFont() {
+        val base = instrumentation.targetContext
+        assertEquals("Fantastic Pi Mobile", base.applicationInfo.loadLabel(base.packageManager).toString())
+        instrumentation.runOnMainSync {
+            for (fontScale in listOf(1f, 2f)) {
+                val config = Configuration(base.resources.configuration).apply { this.fontScale = fontScale }
+                val context = ContextThemeWrapper(base.createConfigurationContext(config), R.style.Theme_PiPocket)
+                val drawer = SessionDrawer(context, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
+                drawer.measure(View.MeasureSpec.makeMeasureSpec(context.dp(280), View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(context.dp(800), View.MeasureSpec.EXACTLY))
+                drawer.layout(0, 0, drawer.measuredWidth, drawer.measuredHeight)
+                val brand = drawer.getChildAt(0) as TextView
+                assertEquals("✦ Fantastic Pi Mobile", brand.text.toString())
+                assertTrue("Branding is vertically cropped at font scale $fontScale",
+                    brand.layout.height + brand.compoundPaddingTop + brand.compoundPaddingBottom <= brand.height)
+                for (line in 0 until brand.layout.lineCount) {
+                    assertEquals("Branding is ellipsized", 0, brand.layout.getEllipsisCount(line))
+                    assertTrue("Branding exceeds the drawer width",
+                        brand.layout.getLineWidth(line) <= brand.width - brand.compoundPaddingLeft - brand.compoundPaddingRight)
+                }
+            }
+        }
+    }
+
     @Test fun longMergeLabelsCanGrowInTheActualReviewScreen() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(Intent(context, ChangesActivity::class.java)

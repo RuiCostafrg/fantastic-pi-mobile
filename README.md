@@ -1,6 +1,8 @@
-# Pi Pocket ✦
+# Fantastic Pi Mobile ✦
 
 A voice-first personal assistant for Android, written in **Kotlin**, with local **SQLite** history and a **Pi Durable** bridge.
+
+Repository: [RuiCostafrg/fantastic-pi-mobile](https://github.com/RuiCostafrg/fantastic-pi-mobile). For local checkout compatibility and the remaining physical-folder migration, see [rename and next steps](docs/repository-rename.md).
 
 > Early MVP. The app and bridge are separate processes. Model inference is provided by your configured Pi provider, not an offline model. Review a dictated request before tapping **Send**.
 
@@ -51,7 +53,7 @@ Or use a Linux/macOS build machine with Android SDK 35:
 # app/build/outputs/apk/debug/app-debug.apk
 ```
 
-The Actions template is at `ci/build-and-test.yml`. **It is not active yet:** the GitHub token used to create this repo lacked the `workflow` scope. Once authorized, move it to `.github/workflows/ci.yml` and push. It builds a debug-signed APK on each push. Download **pi-pocket-debug** from the successful **Build and test** run. Debug builds are for personal development, not Play Store release.
+The Actions template is at `ci/build-and-test.yml`. **It is not active yet:** the GitHub token used to create this repo lacked the `workflow` scope. Once authorized, move it to `.github/workflows/ci.yml` and push. It builds a debug-signed APK on each push. Download **fantastic-pi-mobile-debug** from the successful **Build and test** run. Debug builds are for personal development, not Play Store release.
 
 To authorize and enable it from your own terminal:
 
@@ -83,7 +85,7 @@ pi
 Configure the bridge:
 
 ```sh
-cd /path/to/pi-pocket/bridge
+cd /path/to/fantastic-pi-mobile/bridge
 npm ci --ignore-scripts
 cp .env.example .env
 # Edit .env:
@@ -105,7 +107,7 @@ The bridge binds **127.0.0.1:8787 only**. It does not expose an unauthenticated 
 
 ## 3. Pair and talk
 
-1. Open **Pi Pocket → ☰ → Settings** (also available under the chat's **⋮** menu).
+1. Open **Fantastic Pi Mobile → ☰ → Settings** (also available under the chat's **⋮** menu).
 2. Leave the URL as `http://127.0.0.1:8787`.
 3. Paste the **same** pairing token from the bridge's `.env`.
 4. Save; use **Test** in Settings to check the saved connection.

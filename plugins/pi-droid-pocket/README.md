@@ -1,4 +1,4 @@
-# Optional Pi Pocket host adapter for pi-droid
+# Optional Fantastic Pi Mobile host adapter for pi-droid
 
 This external plugin delegates to `scripts/bridge-work`. It is **not enabled by
 installation**, does not select an Android device, and never starts/stops a bridge
@@ -11,7 +11,7 @@ host cannot manage a bridge on the selected phone through this adapter.
 From the pi-droid checkout, install this local package (only when desired):
 
 ```sh
-npm install /absolute/path/to/pi-pocket/plugins/pi-droid-pocket
+npm install /absolute/path/to/fantastic-pi-mobile/plugins/pi-droid-pocket
 ```
 
 Then manually add a plugin entry to pi-droid's `config/default.json`:
@@ -22,7 +22,7 @@ Then manually add a plugin entry to pi-droid's `config/default.json`:
     "pocket": {
       "enabled": true,
       "package": "@pi-droid/plugin-pocket",
-      "checkout": "/absolute/path/to/pi-pocket",
+      "checkout": "/absolute/path/to/fantastic-pi-mobile",
       "session": "work",
       "window": "pocket-bridge"
     }

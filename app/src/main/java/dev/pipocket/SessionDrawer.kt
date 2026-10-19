@@ -29,7 +29,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
     init {
         orientation = VERTICAL; setPadding(context.dp(18), context.dp(16), context.dp(18), context.dp(12))
         setBackgroundColor(PocketColors.panel)
-        addView(context.textLabel("✦ Pi Pocket", 25f).apply { setTypeface(typeface, Typeface.BOLD) })
+        addView(context.textLabel("✦ Fantastic Pi Mobile", 25f).apply { setTypeface(typeface, Typeface.BOLD) })
         addView(summary)
         addView(context.actionButton("＋ New chat", "New chat") {
             showingArchive = false; search.setText(""); newChat(); renderRows()

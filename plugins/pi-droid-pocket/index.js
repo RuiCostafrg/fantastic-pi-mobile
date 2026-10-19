@@ -19,7 +19,7 @@ const tools = commands.map(command => ({
     required: command === 'status' ? [] : ['confirmed'], additionalProperties: false },
 }));
 export const piDroidManifest = {
-  schemaVersion: '1.0', name: 'pocket', displayName: 'Pi Pocket host bridge',
+  schemaVersion: '1.0', name: 'pocket', displayName: 'Fantastic Pi Mobile host bridge',
   description: 'Optional explicit host-local bridge management; not device automation.',
   requiredCoreVersion: '>=0.2.0', targetApps: ['dev.pipocket'], tools,
 };

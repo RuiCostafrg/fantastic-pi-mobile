@@ -9,7 +9,7 @@ Research and implementation decision: 2026-10-16.
 
 Attempted OpenAI's [Android FAQ](https://help.openai.com/en/articles/8142208-chatgpt-android-app-faq) and [Android history instructions](https://help.openai.com/en/articles/8167621-how-can-i-access-my-conversation-history-in-the-chatgpt-android-app); both returned HTTP 403. Those pages were not inspected and no details of ChatGPT's current UI are asserted. A candidate Claude help URL returned 404 and was not used as evidence. Research was sequential because this harness exposes no background-agent tool.
 
-## Decision for Pi Pocket
+## Decision for Fantastic Pi Mobile
 
 - A real modal left drawer, edge swipe, scrim/back dismissal, and an accessible top-bar menu button.
 - New chat at the top; search by title; pinned and recent sections; selected-chat highlight; rename/pin available through explicit overflow menus as well as long press.

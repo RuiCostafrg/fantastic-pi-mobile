@@ -164,7 +164,7 @@ async function run() {
   await log.close();
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => child.kill('SIGTERM'));
   child.on('error', () => { console.error('Bridge could not launch; inspect private log.'); process.exitCode = 1; });
-  console.log('Pi Pocket bridge — explicit launch, no automatic restart. Diagnostics: private data/bridge.log');
+  console.log('Fantastic Pi Mobile bridge — explicit launch, no automatic restart. Diagnostics: private data/bridge.log');
   child.once('spawn', async () => {
     try { await writeFile(join(data, 'bridge.pid'), String(child.pid) + '\n', { mode: 0o600 }); }
     catch { child.kill('SIGTERM'); }

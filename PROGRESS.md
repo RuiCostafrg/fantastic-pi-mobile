@@ -1,6 +1,18 @@
-# Pi Pocket recovery and progress
+# Fantastic Pi Mobile recovery and progress
 
-Updated: 2026-10-16
+## Repository rename — validated, 2026-10-19
+
+- Fresh validation: **46/46 bridge tests**, **2/2 optional adapter tests**, **10/10 observer regressions**; normal and isolated APK/test-APK builds plus Android lint passed.
+- On-device isolated fixture: **24/24 instrumentation tests passed**, covering history upgrades, request status, drawer navigation, review UI and layout. Added a rename regression for the application label and drawer branding at 280dp / 100% and 200% font. First combined run had one existing activity-launch timeout; the layout class alone (4/4) and a complete repeat (24/24) passed without code changes. Timeout cause remains unestablished.
+- Normal `dev.pipocket` APK/history/pairing were not replaced; no bridge restart or model request. The renamed normal APK is built but not installed; no claim of a new full production end-to-end or background-survival test.
+
+The project is now **Fantastic Pi Mobile**, repository `RuiCostafrg/fantastic-pi-mobile`.
+Use `~/projects/fantastic-pi-mobile` locally. This is a symlink to the retained
+physical checkout: moving that checkout needs a separate saved-workspace migration.
+See [rename and next steps](docs/repository-rename.md). Earlier dated entries below
+are historical evidence, not current production status or current commit state.
+
+Updated: 2026-10-16 (reliability history below)
 
 ## Scoped repository-action restart — passed, 2026-10-16 21:29 UTC
 
@@ -45,7 +57,7 @@ Updated: 2026-10-16
 
 ## Explicit tmux bridge workflow — migrated; real-app manual screen-off/recovery verified
 
-- **Actual installed Pi Pocket test passed with user-assisted screen-off (0.6.1).** Created the visible chat **Screen-off reliability test**. The first 60-second request completed during setup while awake and is not counted as background evidence. Then sent one new 120-second sleep request through the app's actual Send control, verified its saved UUID/server running state, `tool_execution_start: bash` and real sleep process, and instructed the user to turn off for 150 seconds. On their return the exact request was done and the real app showed **PI · DONE / POCKET_SCREEN_OFF_120_OK**.
+- **Actual installed Fantastic Pi Mobile test passed with user-assisted screen-off (0.6.1).** Created the visible chat **Screen-off reliability test**. The first 60-second request completed during setup while awake and is not counted as background evidence. Then sent one new 120-second sleep request through the app's actual Send control, verified its saved UUID/server running state, `tool_execution_start: bash` and real sleep process, and instructed the user to turn off for 150 seconds. On their return the exact request was done and the real app showed **PI · DONE / POCKET_SCREEN_OFF_120_OK**.
 - Persisted real Pi session evidence: exactly one matching bash dispatch (`sleep 120; echo POCKET_SCREEN_OFF_120_OK`), successful tool output, timestamps **19:34:12.832Z → 19:36:12.903Z** (~120.071 s), before user return. One terminal Durable task for that UUID; bridge retained PID 16784, eight slots, zero active work. Test worktree clean. All original 14 task records and 85 saved file hashes preserved; two explicitly authorized test requests are additional history (16 terminal tasks total). Kept the test chat/result visible; no automatic archive or history deletion.
 - Private real-app evidence: ignored `bridge/data/real-app-screen-off-20261016-213400/` (request, before/after job, real sleep metadata, verified tool evidence and user-return metadata); earlier awake setup under `real-app-screen-off-20261016-212347/`. Input used ASCII ADB key events without changing Gboard, APK, lock/security/battery settings or restarting the bridge. No uncertain request replay.
 - **Scope:** successful bounded actual-app job execution and recovery across the user's reported screen-off interval, not continuous independent Asleep proof, Doze/all-night/memory-pressure/provider-network guarantees, or a fix for the separate sampler lifetime issue. Older observer failures below remain inconclusive, not retroactively passed. No commit/push.
@@ -211,7 +223,7 @@ The unpaired screen now displays WAITING FOR PAIRING and an enabled Pair bridge 
 
 - App package: `dev.pipocket`.
 - Bridge URL: `http://127.0.0.1:8787`, loopback only.
-- Workspace: this repository (`~/projects/pi-pocket`).
+- Workspace: this repository (`~/projects/fantastic-pi-mobile`).
 - Private config: `bridge/.env` (ignored). Uses this recovery session's selected Pi provider/model, with low reasoning. `PI_ARGS` is local configuration, not in version control.
 - Bridge started with `nohup node --env-file=.env src/server.js`, from `bridge/`.
 - PID file: `bridge/data/bridge.pid`; logs: `bridge/data/bridge.log` (ignored).
@@ -235,7 +247,7 @@ Prerequisites are installed under `~/.local/android-sdk` and Termux's OpenJDK 21
 ```sh
 export JAVA_HOME="$PREFIX/lib/jvm/java-21-openjdk"
 export ANDROID_HOME="$HOME/.local/android-sdk"
-cd ~/projects/pi-pocket
+cd ~/projects/fantastic-pi-mobile
 ./gradlew --no-daemon -Dorg.gradle.native=false \
   -Pandroid.aapt2FromMavenOverride="$ANDROID_HOME/aapt2-source/build/aapt2" \
   --max-workers=2 assembleDebug lintDebug

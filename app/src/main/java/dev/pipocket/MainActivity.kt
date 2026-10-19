@@ -100,7 +100,7 @@ class MainActivity : Activity() {
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(iconButton("menu", "Open chats") { hideKeyboard(); drawer.openDrawer(GravityCompat.START) }, LinearLayout.LayoutParams(dp(48), dp(48)))
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(4), 0) }
-        titles.addView(textLabel("PI POCKET", 10f, true).apply { letterSpacing = 0.16f })
+        titles.addView(textLabel("FANTASTIC PI MOBILE", 10f, true).apply { letterSpacing = 0.16f })
         title = textLabel("", 20f).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END; setTypeface(typeface, Typeface.BOLD) }
         titles.addView(title); header.addView(titles, LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(iconButton("add", "New chat") { newChat() }, LinearLayout.LayoutParams(dp(48), dp(48)))
@@ -480,7 +480,7 @@ class MainActivity : Activity() {
         try {
             startActivityForResult(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Talk to Pi Pocket"); putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Talk to Fantastic Pi Mobile"); putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             }, 42)
         } catch (_: ActivityNotFoundException) { Toast.makeText(this, "No speech service installed. You can still type.", Toast.LENGTH_LONG).show() }
     }

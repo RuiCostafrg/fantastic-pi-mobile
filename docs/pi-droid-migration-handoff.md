@@ -29,9 +29,9 @@ HEAD advanced to **63c3f0f — Add guarded bridge management and optional pi-dro
 
 ## Intent and priority
 
-The user asked for a handoff so the local automation can later be migrated into pi-droid. **This is notes only; no pi-droid migration has been implemented.** Finish the current Pi Pocket background-reliability increment first. Keep the accepted app UI and durable exact-ID/non-replay behavior.
+The user asked for a handoff so the local automation can later be migrated into pi-droid. **This is notes only; no pi-droid migration has been implemented.** Finish the current Fantastic Pi Mobile background-reliability increment first. Keep the accepted app UI and durable exact-ID/non-replay behavior.
 
-Source checkout: `~/projects/pi-pocket`. Target checkout: `~/projects/pi-droid`. Read the target repository's current instructions, README, PLUGINS.md and actual exports before designing/implementing; paths/interfaces below are starting points, not a committed API design.
+Source checkout: `~/projects/fantastic-pi-mobile`. Target checkout: `~/projects/pi-droid`. Read the target repository's current instructions, README, PLUGINS.md and actual exports before designing/implementing; paths/interfaces below are starting points, not a committed API design.
 
 ## What actually ran
 
@@ -42,7 +42,7 @@ This work was a mix, not pi-droid alone:
 | Screenshot reading, device discovery, secure reconnect attempts, app foreground observation | Existing pi-droid tools plus saved-screenshot reader | Reuse existing tools; no duplicate screenshot/ADB stack |
 | Pairing after the user supplied a fresh screenshot | Local Python subprocess driving `adb pair` with private FIFO/stdin | Consider an explicit-consent secure pairing operation; never conflate pairing with reconnect |
 | Bridge start/status/pause/resume/stop | `scripts/bridge-work` + `scripts/bridge-work.mjs` | App-specific optional adapter/plugin over reusable host process/tmux helpers, if appropriate |
-| Admission gate/global job and review counts | `bridge/src/store.js`, `bridge/src/server.js` | Remains Pi Pocket server responsibility; a plugin may invoke it |
+| Admission gate/global job and review counts | `bridge/src/store.js`, `bridge/src/server.js` | Remains Fantastic Pi Mobile server responsibility; a plugin may invoke it |
 | Disposable tmux/restart/screen-off harness and detached same-phone sampler | `scripts/check-bridge-work.py`, `scripts/power_observer.py`, `scripts/test_power_observer.py` | Generic passive power/transport observation can move to pi-droid; keep Pocket fixture/journal assertions app-specific |
 | Bridge/maintenance integration tests | `bridge/test/maintenance.test.js`, existing bridge suite | Retain in Pocket; add target-package contract tests for extracted helpers |
 | One-word gym launcher | `~/.pi/agent/bin/gym`, built on the user's zsh work/tmux setup | User convenience, not automatically part of Android automation core |
@@ -110,7 +110,7 @@ The old manual pairing wizard/window was rejected by the user and closed while s
 
 ## Later actual-app manual test — successful within stated scope
 
-After the sampler failures, user explicitly requested testing **the installed Pi Pocket app itself**. A new labeled chat was created and a 60-second request completed while awake (setup only). One new 120-second request was then sent through the real app Send control; exact UUID, running status/bash progress and live sleep process were verified before instructing user off for 150 seconds. On return the same request was done and real UI showed `PI · DONE / POCKET_SCREEN_OFF_120_OK`. Persisted Pi session proves one `sleep 120; echo POCKET_SCREEN_OFF_120_OK` dispatch and successful output, **19:34:12.832Z → 19:36:12.903Z**. Bridge PID 16784, original 14 task records/85 file hashes preserved, clean test worktree. Two explicit additional jobs now make 16 terminal tasks. No IME/lock/APK changes or restart. Private artifacts: `bridge/data/real-app-screen-off-20261016-213400/`. Test chat/result retained.
+After the sampler failures, user explicitly requested testing **the installed Fantastic Pi Mobile app itself**. A new labeled chat was created and a 60-second request completed while awake (setup only). One new 120-second request was then sent through the real app Send control; exact UUID, running status/bash progress and live sleep process were verified before instructing user off for 150 seconds. On return the same request was done and real UI showed `PI · DONE / POCKET_SCREEN_OFF_120_OK`. Persisted Pi session proves one `sleep 120; echo POCKET_SCREEN_OFF_120_OK` dispatch and successful output, **19:34:12.832Z → 19:36:12.903Z**. Bridge PID 16784, original 14 task records/85 file hashes preserved, clean test worktree. Two explicit additional jobs now make 16 terminal tasks. No IME/lock/APK changes or restart. Private artifacts: `bridge/data/real-app-screen-off-20261016-213400/`. Test chat/result retained.
 
 Treat this as successful **user-assisted screen-off/work/recovery**, not independent continuous Asleep proof or a fix for the sampler. The instrumented evidence failures below remain valid migration caveats. Keep the scopes separate in future tool results.
 
@@ -124,10 +124,10 @@ The actual detached-sampler screen-off attempt (`bridge/data/screen-off-check-20
 
 42 Pocket bridge tests passed; standalone real-tmux harness passed; synthetic power-parser/control-flow checks passed. The first physical screen-off observer failed on unavailable wireless ADB before Asleep evidence, so no valid physical outcome was established. Production was later found absent; its stop cause is unknown. Saved 14 task records and 85 state/config/session/worktree hashes matched; no related process/listener remained, fresh private backup preceded explicit recovery. Do not attribute that absence to screen-off.
 
-At handoff creation, current production was explicitly recovered and authenticated healthy, protocol v4/eight slots, admissions open, zero active jobs/reviews, 14 terminal tasks. Rediscover all PIDs, addresses and paths; no hardcoded live values are acceptance evidence. Existing current-state handoff: `~/.pi/agent/handoffs/pi-pocket-gym.md`. Main implementation/evidence: `docs/bridge-work.md`, `PROGRESS.md`, `docs/reliability-baseline.md`.
+At handoff creation, current production was explicitly recovered and authenticated healthy, protocol v4/eight slots, admissions open, zero active jobs/reviews, 14 terminal tasks. Rediscover all PIDs, addresses and paths; no hardcoded live values are acceptance evidence. Existing current-state handoff: `~/.pi/agent/handoffs/fantastic-pi-mobile-gym.md`. Main implementation/evidence: `docs/bridge-work.md`, `PROGRESS.md`, `docs/reliability-baseline.md`.
 
 Original reliability work remains the immediate next step. Keep the Wi-Fi fixed for an agreed short physical observation, record its actual outcome, then decide whether to undertake this separate migration. No commit/push or implementation migration is authorized by this notes file.
 
 ## Future-session prompt
 
-Read docs/pi-droid-migration-handoff.md in ~/projects/pi-pocket. First confirm the current reliability increment's actual evidence and dirty checkout. Then inspect ~/projects/pi-droid's current instructions, secure reconnect, command execution, tools and plugin APIs. Propose a small extraction boundary for the reusable local helpers, leaving Pocket admission/journal logic in Pocket. Preserve explicit consent, secret handling, one storage owner, shared wake-lock ownership and exact-ID non-replay. Add isolated contract tests before replacing working scripts; do not restart production or commit/push without approval.
+Read docs/pi-droid-migration-handoff.md in ~/projects/fantastic-pi-mobile. First confirm the current reliability increment's actual evidence and dirty checkout. Then inspect ~/projects/pi-droid's current instructions, secure reconnect, command execution, tools and plugin APIs. Propose a small extraction boundary for the reusable local helpers, leaving Pocket admission/journal logic in Pocket. Preserve explicit consent, secret handling, one storage owner, shared wake-lock ownership and exact-ID non-replay. Add isolated contract tests before replacing working scripts; do not restart production or commit/push without approval.

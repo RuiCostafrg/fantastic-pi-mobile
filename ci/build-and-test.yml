@@ -34,5 +34,5 @@ jobs:
       - run: ./gradlew assembleDebug lintDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: pi-pocket-debug
+          name: fantastic-pi-mobile-debug
           path: app/build/outputs/apk/debug/app-debug.apk

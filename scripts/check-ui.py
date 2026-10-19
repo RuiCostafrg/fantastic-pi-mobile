@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only on-device assertions. Run with Pi Pocket's main screen visible.
+"""Read-only on-device assertions. Run with Fantastic Pi Mobile's main screen visible.
 
 python scripts/check-ui.py unpaired
 python scripts/check-ui.py done --contains Benfica
@@ -14,10 +14,10 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('state', choices=['unpaired', 'done', 'cancelled'])
 parser.add_argument('--contains', default='')
 args = parser.parse_args()
-subprocess.run(['adb', 'shell', 'uiautomator', 'dump', '/sdcard/pi-pocket-check.xml'], check=True, stdout=subprocess.DEVNULL)
-xml = subprocess.check_output(['adb', 'exec-out', 'cat', '/sdcard/pi-pocket-check.xml'])
+subprocess.run(['adb', 'shell', 'uiautomator', 'dump', '/sdcard/fantastic-pi-mobile-check.xml'], check=True, stdout=subprocess.DEVNULL)
+xml = subprocess.check_output(['adb', 'exec-out', 'cat', '/sdcard/fantastic-pi-mobile-check.xml'])
 nodes = list(ET.fromstring(xml).iter('node'))
-assert any(n.get('package') == 'dev.pipocket' for n in nodes), 'Pi Pocket not visible'
+assert any(n.get('package') == 'dev.pipocket' for n in nodes), 'Fantastic Pi Mobile not visible'
 texts = [n.get('text', '') for n in nodes]
 buttons = [n for n in nodes if n.get('class') == 'android.widget.Button']
 if args.state == 'unpaired':

@@ -66,7 +66,7 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
           const answer = await runner({
             bin, cwd: workspace.cwd,
             args: [...extraArgs, '--mode', 'rpc', '--session-dir', resolve(directory, 'pi-sessions'), '--session-id', (task.input.sessionId ?? 'pocket') === 'pocket' ? 'pocket' : 'pocket-' + task.input.sessionId,
-              '--append-system-prompt', 'Pi Pocket workspace: this chat has its own Git worktree at ' + workspace.cwd +
+              '--append-system-prompt', 'Fantastic Pi Mobile workspace: this chat has its own Git worktree at ' + workspace.cwd +
               '. Branch: ' + (workspace.branch ?? 'test') + '. Work inside this checkout, not paths remembered from earlier turns. ' +
               'Do not switch branches, edit other checkouts, merge, or push unless explicitly requested. Uncommitted files from the original checkout were not copied. Phone actions are still shared.'],
             text: task.input.text, signal: runtime.signal, clients, id: task.input.id,
