@@ -288,7 +288,8 @@ test('authenticated HTTP review routes validate actions and never log filenames 
     assert.equal((await req('changes?summary=1', undefined, false)).status, 401);
     const indicator = await req('changes?summary=1');
     assert.equal(indicator.status, 200);
-    assert.deepEqual(await indicator.json(), { hasChanges: true, fileCount: 1, workingCount: 1, committedCount: 0, repositoryActionActive: false });
+    assert.deepEqual(await indicator.json(), { hasChanges: true, fileCount: 1, workingCount: 1, committedCount: 0, repositoryActionActive: false,
+      projectId: (await store.getSessionProject('chat')).projectId });
     const s = await (await req('changes')).json();
     const diff = await req('diff?scope=working&path=file.txt&revision=' + s.revision); assert.equal(diff.status, 200);
     assert.match((await diff.json()).text, /PRIVATE_DIFF_TEXT/);

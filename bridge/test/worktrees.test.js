@@ -153,15 +153,10 @@ test('Durable jobs launch real RPC children in distinct worktrees and retain wor
 test('workspace setup failures never launch Pi in the shared checkout, including legacy chats', () => temporary(async root => {
   const source = await repo(root);
   let calls = 0;
-  const store = await openStore({ cwd: source, directory: join(root, 'data'), defaultBranch: 'missing-default',
-    runner: async () => { calls++; return 'Should not run'; } });
-  try {
-    await store.submit('setup-failure', 'hi'); // legacy pocket session must also be isolated
-    const failed = await waitFor(store, 'setup-failure', j => j.status === 'failed');
-    assert.match(failed.answer, /Git workspace operation failed/);
-    assert.equal(calls, 0);
-    assert.equal(await git(source, 'branch', '--show-current'), 'trunk');
-  } finally { await store.close(); }
+  await assert.rejects(openStore({ cwd: source, directory: join(root, 'data'), defaultBranch: 'missing-default',
+    runner: async () => { calls++; return 'Should not run'; } }), /Project Git validation failed/);
+  assert.equal(calls, 0);
+  assert.equal(await git(source, 'branch', '--show-current'), 'trunk');
   // Failed opening must release the Durable storage lock as well.
   const directory = join(root, 'not-a-repo-store');
   await assert.rejects(openStore({ cwd: root, directory }), /Git workspace operation failed/);

@@ -55,8 +55,8 @@ class LiveStatusUiTest {
                             val body = when {
                                 !available.get() -> "{\"error\":\"Fixture offline\"}"
                                 !jobRequest -> "{\"hasChanges\":false}"
-                                interrupted.get() -> "{\"sessionId\":\"pocket\",\"status\":\"interrupted\",\"answer\":\"Not replayed\"}"
-                                else -> "{\"sessionId\":\"pocket\",\"status\":\"running\",\"pending\":{\"id\":\"approval\",\"method\":\"confirm\",\"title\":\"Fixture approval\"}}"
+                                interrupted.get() -> "{\"id\":\"saved-approval\",\"sessionId\":\"pocket\",\"status\":\"interrupted\",\"answer\":\"Not replayed\"}"
+                                else -> "{\"id\":\"saved-approval\",\"sessionId\":\"pocket\",\"status\":\"running\",\"pending\":{\"id\":\"approval\",\"method\":\"confirm\",\"title\":\"Fixture approval\"}}"
                             }
                             val bytes = body.toByteArray(Charsets.UTF_8)
                             socket.getOutputStream().apply {

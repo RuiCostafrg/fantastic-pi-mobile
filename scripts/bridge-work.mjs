@@ -100,7 +100,7 @@ async function status() {
   catch { return refuse('unverified', 'storage-unreadable'); }
   try { result.health = await api('/health'); }
   catch (error) { return refuse('unavailable', error.status === 401 ? 'health-authentication-failed' : 'health-unavailable'); }
-  if (result.health?.ok !== true || result.health.protocolVersion !== 4) return refuse('unverified', 'health-unverified');
+  if (result.health?.ok !== true || ![4, 5].includes(result.health.protocolVersion)) return refuse('unverified', 'health-unverified');
   if (result.health.processId === undefined) return refuse('unverified', 'health-owner-unverified');
   if (result.health.processId !== result.owner.pid) return refuse('unverified', 'http-owner-mismatch');
   try { result.maintenance = await api('/v1/maintenance'); }

@@ -83,7 +83,7 @@ test('restart does not replay dispatched jobs in any session', () => temporary(a
   await store.submit('restart-job-a', 'hang', 'chat-a');
   await store.submit('restart-job-b', 'hang', 'chat-b');
   await waitFor(store, 'restart-job-a', job => job.status === 'running');
-  await waitFor(store, 'restart-job-b', job => job.status === 'running');
+  await waitFor(store, 'restart-job-b', job => job.status === 'running' && calls === 2);
   await store.close();
   store = await openStore({ directory, cwd: process.cwd(), runner });
   try {
@@ -104,7 +104,7 @@ test('HTTP session validation and backward-compatible legacy conversation', () =
     ...(body ? { method: 'POST', body: JSON.stringify(body) } : {})
   });
   try {
-    assert.equal((await (await request('/health')).json()).protocolVersion, 4);
+    assert.equal((await (await request('/health')).json()).protocolVersion, 5);
     for (const sessionId of ['', '../pocket', 'a'.repeat(81), 4, null]) {
       assert.equal((await request('/v1/jobs', { requestId: 'invalid-session', text: 'hi', sessionId })).status, 400);
     }

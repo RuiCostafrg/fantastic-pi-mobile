@@ -48,15 +48,20 @@ class Connection(context: Context) {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv)) }
         return String(cipher.doFinal(Base64.decode(encrypted, Base64.NO_WRAP)), Charsets.UTF_8)
     }
-    fun request(path: String, body: JSONObject? = null): JSONObject {
+    fun request(path: String, body: JSONObject? = null): JSONObject = requestAt(endpoint, path, body)
+    /** A health/binding proof must never be followed by POST to a newly paired endpoint. */
+    fun requestAt(expectedEndpoint: String, path: String, body: JSONObject? = null): JSONObject {
+        if (endpoint != expectedEndpoint) throw ProjectIdentityException("Bridge connection changed; request preserved")
+        val authorization = token()
+        if (endpoint != expectedEndpoint) throw ProjectIdentityException("Bridge connection changed; request preserved")
         val started = SystemClock.elapsedRealtime()
         val method = if (body == null) "GET" else "POST"
         val route = when { path == "/health" -> "health"; path == "/v1/jobs" -> "submit"; path.startsWith("/v1/sessions/") -> "review"; else -> "job" }
-        val conn = URL(endpoint + path).openConnection() as HttpURLConnection
+        val conn = URL(expectedEndpoint + path).openConnection() as HttpURLConnection
         try {
             conn.connectTimeout = 5000; conn.readTimeout = 15000
             conn.instanceFollowRedirects = false
-            conn.setRequestProperty("Authorization", "Bearer " + token())
+            conn.setRequestProperty("Authorization", "Bearer " + authorization)
             if (body != null) {
                 conn.requestMethod = "POST"; conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")

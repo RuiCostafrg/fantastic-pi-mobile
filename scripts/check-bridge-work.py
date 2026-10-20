@@ -84,6 +84,11 @@ def main(options):
             raise AssertionError('Timed out waiting for fixture')
         def run_ok(*args):
             result = workflow(*args)
+            if result.returncode != 0 and args == ('start',):
+                # Fixture-only, allowlisted diagnostics: never config, token or raw logs.
+                state = json.loads(workflow('status').stdout)
+                raise AssertionError({'startup': 'unverified', 'reason': state.get('reason'),
+                                      'protocolVersion': (state.get('health') or {}).get('protocolVersion')})
             assert result.returncode == 0, (args, result.stdout, result.stderr)
             assert token not in result.stdout + result.stderr
             return result
@@ -113,6 +118,8 @@ def main(options):
             finally:
                 config_path.write_text(original_config)
             assert api('/health')['processId'] == owner_pid
+            assert api('/health')['protocolVersion'] == 5
+            assert api('/health')['projectBindings'] is True
             assert not api('/v1/maintenance')['admissionsPaused']
             assert workflow('start').returncode != 0, 'Duplicate launch must fail'
             # Real queued/running fake-RPC work and pending approval block stop.

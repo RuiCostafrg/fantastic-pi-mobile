@@ -7,11 +7,16 @@ import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite
 import { runPi } from './rpc.js';
 import { log } from './log.js';
 import { openWorkspaces } from './workspaces.js';
+import { projectWorkspaces } from './project-workspaces.js';
 import { createReview } from './review.js';
+import { validateProject, registerProject, lookupProject } from './projects.js';
+import { bindSession, legacyEvidence, bindingError } from './bindings.js';
 
 export const DEFAULT_MAX_CONCURRENT = 8;
 export const MAX_CONCURRENT = 32;
 
+const Projects = defineDoc({ kind: 'pocket.projects', version: 1, scope: 'session', initial: () => ({ items: {} }) });
+const Bindings = defineDoc({ kind: 'pocket.bindings', version: 1, scope: 'session', initial: () => ({ items: {}, defaultProjectId: null, migrated: false }) });
 const Jobs = defineDoc({ kind: 'pocket.jobs', version: 1, scope: 'session', initial: () => ({ items: {} }) });
 const Reviews = defineDoc({ kind: 'pocket.reviews', version: 1, scope: 'session', initial: () => ({ items: {} }) });
 export const active = job => ['queued', 'running'].includes(job.status);
@@ -46,6 +51,15 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
     }, ctx);
     log('job.state', { requestId: task.input.id, status });
   };
+  const checkTaskBinding = async (task, document) => {
+    const record = (await harness.snapshot(document, ctx)).items[task.input.id];
+    const bindings = await harness.snapshot(Bindings, ctx);
+    const sessionId = task.input.sessionId ?? 'pocket';
+    if (!record?.projectId || sessionOf(record) !== sessionId ||
+        bindings.items[sessionId]?.projectId !== record.projectId ||
+        (task.input.projectId !== undefined && task.input.projectId !== record.projectId)) throw bindingError('Accepted task binding conflicts; refusing execution.');
+    await lookupProject(await harness.snapshot(Projects, ctx), record.projectId, directory);
+  };
   const Command = defineTask({
     name: 'pocket.command', version: 1, initial: () => ({ phase: 'execute' }),
     phases: {
@@ -59,6 +73,7 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
         await runtime.memo('dispatched', true, ctx);
         await update(task.input.id, { status: 'running', pending: null }, runtime);
         try {
+          await checkTaskBinding(task, Jobs);
           await update(task.input.id, { progress: 'Preparing this chat’s isolated Git worktree…' }, runtime);
           const workspace = await spaces.forSession(task.input.sessionId ?? 'pocket', runtime.signal);
           runtime.signal.throwIfAborted();
@@ -107,6 +122,7 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
       await runtime.memo('dispatched', true, ctx);
       await runtime.commit(async tx => { (await tx.doc(Reviews)).items[task.input.id].status = 'running'; }, ctx);
       try {
+        await checkTaskBinding(task, Reviews);
         const result = await review.execute(task.input.sessionId, task.input.input, runtime.signal);
         await finishReview(task, runtime, 'done', result);
       } catch (error) {
@@ -117,18 +133,74 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
     abort: async (task, runtime) => finishReview(task, runtime, 'cancelled', { message: 'Stopped. Previously completed test/file/Git side effects are not rolled back.' })
   });
   try {
-    spaces = workspaces ?? await openWorkspaces({ cwd, directory, defaultBranch, remote });
-    review = reviewActions ?? createReview({ workspaces: spaces });
+    const legacySpaces = workspaces ?? await openWorkspaces({ cwd, directory, defaultBranch, remote });
     const registry = createRegistry();
     registry.install(defineExtension({ name: 'pocket', tasks: [Command, ReviewAction] }));
     harness = await Harness.open(await openNodeSqliteStorage(resolve(directory, 'assistant.sqlite')), { registry, models: createModels() }, ctx);
     root = await harness.root(ctx);
-    await harness.commit(async tx => { await tx.doc(Jobs); await tx.doc(Reviews); }, ctx);
+    const candidate = await validateProject({ source: resolve(cwd), name: 'Default project',
+      branchPolicy: defaultBranch ? { kind: 'local', branch: defaultBranch } : { kind: 'remote', remote } }, directory);
+    await root.commit(async tx => {
+      const projects = await tx.doc(Projects);
+      const bindings = await tx.doc(Bindings);
+      const jobs = await tx.doc(Jobs);
+      const reviews = await tx.doc(Reviews);
+      let project;
+      if (bindings.defaultProjectId) {
+        project = await lookupProject(projects, bindings.defaultProjectId, directory);
+        for (const key of ['source', 'repositoryRoot', 'commonDirectory', 'subdirectory', 'repositoryIdentity', 'branchPolicy']) {
+          if (JSON.stringify(project[key]) !== JSON.stringify(candidate[key])) throw bindingError('Configured default conflicts with the frozen project. Restore the original configuration.');
+        }
+      } else project = registerProject(projects, candidate);
+      if (!bindings.migrated) {
+        const sessions = await legacyEvidence({ directory, project, spaces: legacySpaces,
+          jobs: Object.values(jobs.items), reviews: Object.values(reviews.items) });
+        for (const sessionId of sessions) {
+          if (!validSessionId(sessionId)) throw bindingError('Invalid legacy session evidence.');
+          if (Object.hasOwn(bindings.items, sessionId) && bindings.items[sessionId].projectId !== project.projectId) throw bindingError('Legacy binding conflicts.');
+          bindings.items[sessionId] = { projectId: project.projectId };
+        }
+      }
+      for (const record of [...Object.values(jobs.items), ...Object.values(reviews.items)]) {
+        const projectId = bindings.items[sessionOf(record)]?.projectId;
+        if (!projectId || !Object.hasOwn(projects.items, projectId) ||
+            (bindings.migrated && !record.projectId) ||
+            (record.projectId && record.projectId !== projectId)) throw bindingError('Saved request binding conflicts.');
+        record.projectId = projectId;
+      }
+      bindings.defaultProjectId = project.projectId;
+      bindings.migrated = true;
+    }, ctx);
+    spaces = projectWorkspaces({ directory,
+      defaultProjectId: (await harness.snapshot(Bindings, ctx)).defaultProjectId,
+      defaultWorkspaces: legacySpaces,
+      resolveProject: async sessionId => {
+        if (!validSessionId(sessionId)) throw Object.assign(new Error('Invalid session'), { status: 400 });
+        const bindings = await harness.snapshot(Bindings, ctx);
+        if (!Object.hasOwn(bindings.items, sessionId)) throw Object.assign(new Error('This chat has no project/worktree yet. Send a message first.'), { status: 404 });
+        return lookupProject(await harness.snapshot(Projects, ctx), bindings.items[sessionId].projectId, directory);
+      }
+    });
+    review = reviewActions ?? createReview({ workspaces: spaces });
     harness.resume();
-  } catch (error) { await lock.close(); await unlink(lockPath); throw error; }
+  } catch (error) { try { await harness?.close(ctx); } finally { await lock.close(); await unlink(lockPath); } throw error; }
   return {
     async get(id) { return (await harness.snapshot(Jobs, ctx)).items[id]; },
     maxConcurrent,
+    projectBindings: true,
+    async getSessionProject(sessionId) {
+      if (!validSessionId(sessionId)) throw Object.assign(new Error('Invalid sessionId'), { status: 400 });
+      const items = (await harness.snapshot(Bindings, ctx)).items;
+      const binding = Object.hasOwn(items, sessionId) ? items[sessionId] : null;
+      return binding ? { sessionId, projectId: binding.projectId } : null;
+    },
+    // Registration is trusted operator input; never derive sources from model output.
+    async registerProject(input) {
+      const candidate = await validateProject(input, directory);
+      return root.commit(async tx => registerProject(await tx.doc(Projects), candidate), ctx);
+    },
+    async listProjects() { return JSON.parse(JSON.stringify(Object.values((await harness.snapshot(Projects, ctx)).items))); },
+    async getProject(projectId) { return lookupProject(await harness.snapshot(Projects, ctx), projectId, directory); },
     async maintenance(paused) {
       return root.commit(async tx => {
         if (paused !== undefined) admissionsPaused = paused;
@@ -137,21 +209,26 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
         return { admissionsPaused, jobs, reviews, idle: jobs === 0 && reviews === 0 };
       }, ctx);
     },
-    async submit(id, text, sessionId = 'pocket') {
+    async submit(id, text, sessionId = 'pocket', requestedProjectId) {
       if (!validSessionId(sessionId)) throw Object.assign(new Error('Invalid sessionId'), { status: 400 });
       const result = await root.commit(async tx => {
         const jobs = await tx.doc(Jobs);
+        const bindings = await tx.doc(Bindings);
+        const projects = await tx.doc(Projects);
         if (jobs.items[id]) {
+          bindSession(bindings, projects, sessionId, requestedProjectId, jobs.items[id].projectId);
           if (jobs.items[id].text !== text || sessionOf(jobs.items[id]) !== sessionId) throw Object.assign(new Error('Request ID reused with different text or session'), { status: 409 });
           return JSON.parse(JSON.stringify(jobs.items[id]));
         }
+        const projectId = bindSession(bindings, projects, sessionId, requestedProjectId);
         requireAdmissions();
         if (Object.values((await tx.doc(Reviews)).items).some(active)) throw Object.assign(new Error('A repository review action is running; this request will wait.'), { status: 429 });
         const running = Object.values(jobs.items).filter(active);
         if (running.some(job => sessionOf(job) === sessionId)) throw Object.assign(new Error('Another command is running in this session; stop it or wait.'), { status: 409 });
         if (running.length >= maxConcurrent) throw Object.assign(new Error('Parallel session limit reached; this request will retry when a slot is free.'), { status: 429 });
-        const taskId = await tx.createTask(Command, { id, text, sessionId }, { ownership: { kind: 'conversation' } });
-        const job = { id, text, sessionId, taskId, status: 'queued', answer: '', progress: '', pending: null, createdAt: Date.now() };
+        await lookupProject(projects, projectId, directory);
+        const taskId = await tx.createTask(Command, { id, text, sessionId, projectId }, { ownership: { kind: 'conversation' } });
+        const job = { id, text, sessionId, projectId, taskId, status: 'queued', answer: '', progress: '', pending: null, createdAt: Date.now() };
         jobs.items[id] = job;
         await tx.appendEntry(root.id, { kind: 'pocket.input', data: { requestId: id, text } });
         return job;
@@ -164,7 +241,7 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
       if (!validSessionId(sessionId)) throw Object.assign(new Error('Invalid session'), { status: 400 });
       const summary = await review.summary(sessionId);
       const repositoryActionActive = Object.values((await harness.snapshot(Reviews, ctx)).items).some(a => a.sessionId === sessionId && active(a));
-      return { ...summary, repositoryActionActive };
+      return { ...summary, repositoryActionActive, projectId: (await this.getSessionProject(sessionId))?.projectId ?? null };
     },
     async changes(sessionId) {
       if (!validSessionId(sessionId)) throw Object.assign(new Error('Invalid session'), { status: 400 });
@@ -180,13 +257,15 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
       const actions = reviews.slice().reverse().filter(a => a.sessionId === sessionId).sort((a, b) => b.createdAt - a.createdAt);
       const testAction = actions.find(a => a.input.action === 'test');
       const test = testAction?.result?.test;
-      return { ...snapshot, busy: jobs.some(j => active(j) && sessionOf(j) === sessionId), modelsBusy: jobs.some(active),
+      return { ...snapshot, projectId: (await this.getSessionProject(sessionId))?.projectId ?? null, busy: jobs.some(j => active(j) && sessionOf(j) === sessionId), modelsBusy: jobs.some(active),
         refreshRequired, repositoryBusy: refreshRequired || reviews.some(active),
         operation: actions[0] ?? null,
         tests: testAction ? { status: testAction.status, message: testAction.result?.message, ...test,
           stale: test ? test.changedDuringRun || test.codeRevision !== snapshot.codeRevision : true } : null };
     },
-    async diff(sessionId, input) { return review.diff(sessionId, input); },
+    async diff(sessionId, input) {
+      return { ...await review.diff(sessionId, input), projectId: (await this.getSessionProject(sessionId))?.projectId ?? null };
+    },
     async reviewAction(sessionId, input) {
       if (!validSessionId(sessionId) || typeof input.operationId !== 'string' || !/^[a-zA-Z0-9-]{8,80}$/.test(input.operationId) || !['commit', 'merge', 'test'].includes(input.action) || typeof input.revision !== 'string' || !/^[a-f0-9]{64}$/.test(input.revision)) throw Object.assign(new Error('Invalid repository action'), { status: 400 });
       const normalized = { action: input.action, revision: input.revision,
@@ -195,16 +274,21 @@ export async function openStore({ directory, cwd, bin = 'pi', extraArgs = [], ru
       const result = await root.commit(async tx => {
         const reviews = await tx.doc(Reviews);
         const existing = reviews.items[input.operationId];
+        const bindings = await tx.doc(Bindings);
+        const projects = await tx.doc(Projects);
         if (existing) {
+          bindSession(bindings, projects, sessionId, input.projectId, existing.projectId);
           if (existing.sessionId !== sessionId || JSON.stringify(existing.input) !== JSON.stringify(normalized)) throw Object.assign(new Error('Operation ID reused with different input'), { status: 409 });
           return JSON.parse(JSON.stringify(existing));
         }
+        const projectId = bindSession(bindings, projects, sessionId, input.projectId);
         requireAdmissions();
         if (Object.values(reviews.items).some(active)) throw Object.assign(new Error('Another repository action is running. Wait for it to finish.'), { status: 409 });
         const jobs = Object.values((await tx.doc(Jobs)).items).filter(active);
         if (jobs.some(j => sessionOf(j) === sessionId) || (input.action === 'merge' && jobs.length)) throw Object.assign(new Error('Wait for running Pi requests before changing this repository.'), { status: 409 });
-        const taskId = await tx.createTask(ReviewAction, { id: input.operationId, sessionId, input: normalized }, { ownership: { kind: 'conversation' } });
-        const action = { id: input.operationId, sessionId, input: normalized, taskId, status: 'queued', createdAt: Date.now(), result: null };
+        await lookupProject(projects, projectId, directory);
+        const taskId = await tx.createTask(ReviewAction, { id: input.operationId, sessionId, projectId, input: normalized }, { ownership: { kind: 'conversation' } });
+        const action = { id: input.operationId, sessionId, projectId, input: normalized, taskId, status: 'queued', createdAt: Date.now(), result: null };
         reviews.items[action.id] = action;
         return action;
       }, ctx);

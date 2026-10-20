@@ -47,7 +47,7 @@ test('interrupted external commands are not replayed on reopen', () => temporary
   const counted = options => { calls++; return runner(options); };
   let store = await openStore({ directory, cwd: process.cwd(), runner: counted });
   await store.submit('request-hang', 'hang');
-  await waitFor(store, 'request-hang', job => job.status === 'running');
+  await waitFor(store, 'request-hang', job => job.status === 'running' && calls === 1);
   await store.close();
   store = await openStore({ directory, cwd: process.cwd(), runner: counted });
   try {

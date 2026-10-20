@@ -29,6 +29,9 @@ class HistoryTest {
             assertEquals("legacy-request", job.id)
             assertEquals("Legacy answer", job.answer)
             assertEquals("pocket", job.sessionId)
+            assertNull(job.projectId)
+            assertEquals(ProjectState.LEGACY_UNRESOLVED, job.projectState)
+            assertEquals(ProjectState.LEGACY_UNRESOLVED, history.session("pocket")!!.projectState)
             val other = history.createSession()
             assertTrue(history.jobs(other).isEmpty())
             assertEquals(2, history.sessions().size)
@@ -124,6 +127,9 @@ class HistoryTest {
             assertFalse(session.archived)
             assertEquals(ChatSection.ATTENTION, session.section)
             assertEquals("A", history.jobs("pocket").single().answer)
+            assertNull(session.projectId)
+            assertEquals(ProjectState.LEGACY_UNRESOLVED, session.projectState)
+            assertEquals(ProjectState.LEGACY_UNRESOLVED, history.jobs("pocket").single().projectState)
         }
     }
     @Test fun groupingKeepsNewThenAttentionThenWorkingThenFinished() {

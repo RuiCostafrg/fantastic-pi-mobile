@@ -42,6 +42,16 @@ The app uses Android's built-in SQLite API (no hosted database). Pi Durable comm
 - Keystore-encrypted pairing token; loopback-only HTTP server; authenticated endpoints.
 - Gradle wrapper and a GitHub Actions template for APK builds, Android lint, and bridge integration tests.
 
+## Multi-project deployment verified (2026-10-20)
+
+Normal app **0.7.0** and protocol-5 bridge are deployed locally. New chats explicitly
+choose/register a trusted Git project; established chats keep their locked binding.
+Two disposable projects passed real coding, native one-file diff review, recorded
+Changes tests and client reopen checks. Legacy history/pairing and existing worktrees
+were preserved. See [step-09 deployment evidence](docs/project-deployment.md) for
+migration checks, the narrow legacy compatibility fix, test results and limits.
+All roadmap steps 01–09 are complete; source is still local/uncommitted/unpushed.
+
 ## Package migration verified (2026-10-19)
 
 The installed application ID is now **`dev.fantasticpimobile`**, not the former
@@ -75,7 +85,7 @@ git commit -m "Enable Android and bridge CI"
 git push
 ```
 
-**Verification so far (2026-10-16):** all 38 bridge/diagnostics/session/worktree/review tests pass; 24 Android instrumentation checks passed in the separate fixture APK (including a real activity/HTTP approval-freshness test). Installed app: **0.6.1**. Foreground-status behavior and incomplete lifecycle-matrix evidence are documented in [docs/reliability-baseline.md](docs/reliability-baseline.md). `assembleDebug assembleDebugAndroidTest lintDebug` passes locally in Termux. On-device tests cover preserved legacy history/pairing, drawer create/switch/rename/pin/search, independent drafts, simultaneous real Pi requests, scoped cancellation, and per-chat context recall. A full on-phone Changes workflow also passed against a disposable repository: selected commits preserved unrelated staging, real test failures/successes/stale results/cancellation were shown, and an explicitly confirmed local merge updated only the disposable default branch. The 0.6.0 phone check also verified contextual Changes visibility before/after coding, commits and local integration, full-screen readable diffs, long filenames and a 200% font-size review. Narrow 320dp layouts and large-font text geometry are covered by instrumentation. Earlier tests also exercised pi-droid's read-only `android_screen_state` and the unpaired-state regression. Voice input, extension dialogs on-device, and background-process survival remain unverified. See [PROGRESS.md](PROGRESS.md) for the local build workaround and test results.
+**Verification so far (2026-10-16):** all 38 bridge/diagnostics/session/worktree/review tests pass; 24 Android instrumentation checks passed in the separate fixture APK (including a real activity/HTTP approval-freshness test). Installed app at that checkpoint: **0.6.1** (now **0.7.0**, verified above). Foreground-status behavior and incomplete lifecycle-matrix evidence are documented in [docs/reliability-baseline.md](docs/reliability-baseline.md). `assembleDebug assembleDebugAndroidTest lintDebug` passes locally in Termux. On-device tests cover preserved legacy history/pairing, drawer create/switch/rename/pin/search, independent drafts, simultaneous real Pi requests, scoped cancellation, and per-chat context recall. A full on-phone Changes workflow also passed against a disposable repository: selected commits preserved unrelated staging, real test failures/successes/stale results/cancellation were shown, and an explicitly confirmed local merge updated only the disposable default branch. The 0.6.0 phone check also verified contextual Changes visibility before/after coding, commits and local integration, full-screen readable diffs, long filenames and a 200% font-size review. Narrow 320dp layouts and large-font text geometry are covered by instrumentation. Earlier tests also exercised pi-droid's read-only `android_screen_state` and the unpaired-state regression. Voice input, extension dialogs on-device, and background-process survival remain unverified. See [PROGRESS.md](PROGRESS.md) for the local build workaround and test results.
 
 The app targets Android 15 and supports Android 8+ (API 26). The bridge is intended to run in Termux on the same physical device. This checkout does not contain an Android SDK/JDK; the tested Termux environment uses separately installed tools and a locally rebuilt ARM-native AAPT2 (see [PROGRESS.md](PROGRESS.md)).
 
@@ -209,7 +219,7 @@ Actions bind to a review revision; changed files/branch state require a refresh 
 
 ## Extension compatibility
 
-The bridge launches the **real installed Pi executable** in RPC mode from the chat’s worktree derived from `PI_WORKSPACE`, without disabling extensions, skills, MCP, or built-in coding tools. It uses your Pi credentials/settings, user extensions, and trusted project resources.
+The bridge launches the **real installed Pi executable** in RPC mode from the chat’s bound-project worktree (`PI_WORKSPACE` bootstraps the frozen legacy default), without disabling extensions, skills, MCP, or built-in coding tools. It uses your Pi credentials/settings, user extensions, and trusted project resources.
 
 Optional `PI_ARGS` in `.env` is a JSON array of additional CLI flags, for example explicit `-e` extension paths. This is trusted local configuration, not input the app or model can change.
 
@@ -279,19 +289,30 @@ These scripts require Python and authorized ADB; `ANDROID_SERIAL` selects a devi
 ### API
 
 Every route requires `Authorization: Bearer <token>`.
+The protocol-5 project contract and capability requirements are in
+[docs/project-api.md](docs/project-api.md). Project discovery/selection is implemented
+in the backend source. Android project/request persistence and capability checks
+passed host and isolated Android database tests:
+[step-06 evidence](docs/android-project-state.md). The native picker passed its
+isolated UI tests ([step 07](docs/project-picker.md)); independent-worker reconnect,
+response-loss and headless Android client-close tests passed
+([step 08](docs/project-lifecycle.md)). Production rollout remains step 09; no normal
+app project-state migration or installation of this increment has been performed.
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/health` | Authenticated liveness, `protocolVersion: 4`, `processId`, `worktreeIsolation: true`, `changesReview: true`, `maxConcurrent` |
+| GET | `/health` | Authenticated liveness, `protocolVersion: 5`, `projectBindings: true`, `processId`, `worktreeIsolation: true`, `changesReview: true`, `maxConcurrent` |
 | GET / POST | `/v1/maintenance` | Global model/review admission state and idle counts; POST `{paused: boolean}` pauses/resumes new IDs without cancelling work or blocking exact-ID recovery |
-| POST | `/v1/jobs` | Submit `{requestId, text, sessionId}`; returns persisted job. Omitting `sessionId` uses legacy `fantastic-pi-mobile` |
+| GET / POST | `/v1/projects` | List trusted projects; deliberately register `{source, name, branchPolicy, confirmRegistration: true}` without executing work |
+| GET | `/v1/sessions/:sessionId/project` | Read immutable binding, or 404 if unbound; no checkout creation |
+| POST | `/v1/jobs` | Submit `{requestId, text, sessionId, projectId?}`; returns persisted job with accepted project. Omitting `sessionId` uses legacy `pocket`; omitted project uses the established binding or frozen default |
 | GET | `/v1/jobs/:id` | Poll status, answer, tool progress, pending dialog |
 | POST | `/v1/jobs/:id/ui` | Respond with matching dialog `id` and `confirmed`, `value`, or `cancelled` |
 | POST | `/v1/jobs/:id/cancel` | Stop a task; no rollback |
 | GET | `/v1/sessions/:sessionId/changes?summary=1` | Lightweight chat-scoped changed-file counts and active-action availability; no checkout creation or content hashing |
 | GET | `/v1/sessions/:sessionId/changes` | Revision-bound file/branch snapshot, last operation and test evidence; `refreshRequired` means read again before acting |
 | GET | `/v1/sessions/:sessionId/diff?revision=…&scope=working\|committed&path=…` | Bounded diff for a listed file |
-| POST | `/v1/sessions/:sessionId/actions` | Persist `{operationId, revision, action}`; `commit` also takes `paths,message`, `test` takes `command`, `merge` needs no extra fields |
+| POST | `/v1/sessions/:sessionId/actions` | Persist `{operationId, revision, action, projectId?}` against the chat binding; `commit` also takes `paths,message`, `test` takes `command`, `merge` needs no extra fields |
 | GET | `/v1/sessions/:sessionId/actions/:operationId` | Resolve an uncertain request using its exact saved ID |
 | POST | `/v1/sessions/:sessionId/actions/:operationId/cancel` | Stop a test action only; no rollback |
 

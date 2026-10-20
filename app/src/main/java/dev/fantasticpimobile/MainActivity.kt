@@ -42,6 +42,8 @@ class MainActivity : Activity() {
     private lateinit var review: Button
     private lateinit var lifecycle: Button
     private lateinit var changes: Button
+    private lateinit var project: Button
+    private lateinit var projectPicker: ProjectPicker
     private var changesSession = ""
     private var changesInfo: JSONObject? = null
     private var nextChangesCheck = 0L
@@ -74,6 +76,9 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         history = History(this); connection = Connection(this)
+        projectPicker = ProjectPicker(this, history, connection, worker, handler,
+            { id -> visible && !isDestroyed && selectedId == id }, { render() },
+            { open -> modalOpen = open; if (!open) maybeShowApproval() })
         val savedId = getSharedPreferences("chat-ui", MODE_PRIVATE).getString("selected", "pocket") ?: "pocket"
         selectedId = if (history.session(savedId) != null) savedId else "pocket"
         speechSessionId = savedInstanceState?.getString("speechSession")
@@ -110,6 +115,8 @@ class MainActivity : Activity() {
         root.addView(header)
         subtitle = textLabel("", 12f, true); root.addView(subtitle)
         status = textLabel("", 13f, true); root.addView(status)
+        project = actionButton("Choose project before Send", "Chat project") { projectPicker.show(selectedId) }
+        root.addView(project, LinearLayout.LayoutParams(-1, -2))
         lifecycle = actionButton("Mark finished") {
             history.session(selectedId)?.let { session ->
                 if (session.archived) archiveSession(session, false) else finishSession(session, !session.finished)
@@ -171,9 +178,9 @@ class MainActivity : Activity() {
         render()
     }
 
-    override fun onStart() { super.onStart(); observations.reset(); visible = true; changesInfo = null; nextChangesCheck = 0; render(); handler.post(poll) }
+    override fun onStart() { super.onStart(); observations.reset(); visible = true; changesInfo = null; nextChangesCheck = 0; render(); history.session(selectedId)?.let { projectPicker.refreshLabel(it) }; handler.post(poll) }
     override fun onStop() {
-        saveDraft(); visible = false; observations.reset()
+        saveDraft(); visible = false; observations.reset(); projectPicker.close()
         approvalDialog?.dismiss(); approvalDialog = null
         handler.removeCallbacks(poll); super.onStop()
     }
@@ -201,6 +208,7 @@ class MainActivity : Activity() {
     }
     private fun switchSession(id: String) {
         if (id != selectedId) {
+            projectPicker.close()
             saveDraft(); approvalDialog?.dismiss(); approvalDialog = null
             selectedId = id
             changesInfo = null; changesSession = ""; nextChangesCheck = 0
@@ -208,6 +216,7 @@ class MainActivity : Activity() {
             bindingDraft = true; draft.setText(history.session(id)?.draft.orEmpty()); draft.setSelection(draft.length()); bindingDraft = false
         }
         hideKeyboard(); drawer.closeDrawer(GravityCompat.START); render(); refreshChanges(force = true)
+        history.session(selectedId)?.let { projectPicker.refreshLabel(it) }
     }
     private fun showMenu(anchor: View) {
         val session = history.session(selectedId) ?: return
@@ -230,7 +239,9 @@ class MainActivity : Activity() {
         if (job == null) { details.text = "A dedicated worktree is created from the default branch when you send the first message."; return }
         worker.execute {
             val message = try {
-                val workspace = connection.request("/v1/jobs/${job.id}").optJSONObject("workspace")
+                val response = connection.request("/v1/jobs/${job.id}")
+                ProjectRequests.validateJob(job, history.session(job.sessionId)?.projectId, response)
+                val workspace = response.optJSONObject("workspace")
                 if (workspace == null) "No worktree recorded yet. New requests prepare a dedicated worktree before Pi runs."
                 else "Directory\n${workspace.optString("cwd")}\n\nBranch\n${workspace.optString("branch")}\n\nStarted from\n${workspace.optString("baseBranch")} @ ${workspace.optString("baseCommit")}\n\nEdits stay here until you explicitly integrate them. Archiving does not remove this worktree. Phone actions and Git history are shared."
             } catch (_: Exception) { "Workspace details unavailable. Check the saved bridge connection and try again." }
@@ -258,6 +269,7 @@ class MainActivity : Activity() {
         val jobs = history.jobs(selectedId)
         val current = jobs.firstOrNull { it.active }
         title.text = session.title
+        project.text = projectPicker.label(session)
         changes.visibility = if (reviewAvailable()) View.VISIBLE else View.GONE
         val changedCount = reviewFileCount(changesInfo)
         changes.text = if (changedCount > 0) "Review $changedCount changed ${if (changedCount == 1) "file" else "files"}" else "View repository action"
@@ -329,15 +341,21 @@ class MainActivity : Activity() {
         if (!visible || !connection.paired || history.jobs(selectedId).isEmpty()) return
         val now = android.os.SystemClock.elapsedRealtime()
         if (!force && now < nextChangesCheck) return
-        val id = selectedId; val endpoint = connection.endpoint
+        val id = selectedId; val endpoint = connection.endpoint; val epoch = observations.epoch
         if (!checkingChanges.add(id)) return
         nextChangesCheck = now + 4500
         worker.execute {
-            val result = runCatching { connection.request("/v1/sessions/$id/changes?summary=1") }
+            val result = runCatching {
+                connection.request("/v1/sessions/$id/changes?summary=1").also {
+                    ProjectRequests.validateProject(history.session(id)?.projectId, it)
+                }
+            }
             handler.post {
                 checkingChanges.remove(id)
-                if (!isDestroyed && visible && selectedId == id && connection.endpoint == endpoint) {
-                    changesSession = id; changesInfo = result.getOrNull(); render()
+                if (!isDestroyed && visible && selectedId == id && connection.endpoint == endpoint && observations.epoch == epoch) {
+                    val accepted = result.getOrNull()
+                    val identity = runCatching { accepted?.let { ProjectRequests.projectId(it) }?.let { history.confirmProject(id, it) } }
+                    changesSession = id; changesInfo = if (identity.isSuccess) accepted else null; render()
                 }
             }
         }
@@ -355,14 +373,14 @@ class MainActivity : Activity() {
                 var result: JSONObject? = null
                 var failure: Exception? = null
                 try {
-                    val received = if (job.status == "sending") {
-                        val health = connection.request("/health")
-                        if (health.optInt("protocolVersion") < 3 || !health.optBoolean("worktreeIsolation")) throw BridgeException(426, "Update the Termux bridge for isolated Git worktrees")
-                        connection.request("/v1/jobs", JSONObject().put("requestId", job.id).put("text", job.text).put("sessionId", job.sessionId))
-                    } else connection.request("/v1/jobs/${job.id}")
-                    if (received.optString("sessionId", "pocket") != job.sessionId) throw BridgeException(409, "Bridge returned a different chat; request not applied")
-                    require(received.getString("status") in listOf("queued", "running", "done", "failed", "cancelled", "interrupted")) { "Unknown bridge job state" }
-                    result = received
+                    fun checkOwner() {
+                        if (epoch != observations.epoch || endpoint != connection.endpoint) throw ProjectIdentityException("Bridge connection changed; request preserved")
+                    }
+                    result = ProjectRequests(beforeLegacySubmit = { project ->
+                        checkOwner(); history.resolveRequestProject(job.id, project)
+                    }, request = { path, body ->
+                        checkOwner(); connection.requestAt(endpoint, path, body)
+                    }).fetch(job, history.session(job.sessionId)?.projectId)
                 } catch (error: Exception) { failure = error }
                 handler.post {
                     polling.remove(job.id)
@@ -371,12 +389,14 @@ class MainActivity : Activity() {
                     val received = result
                     val error = failure
                     if (received != null) {
-                        history.update(job.id, received.getString("status"), received.optString("answer"), received.optString("progress"), received.optJSONObject("pending")?.toString().orEmpty())
-                        observations.record(job.id, epoch, RequestState.CURRENT)
-                    } else if (job.status == "sending" && error is BridgeException && error.code in listOf(400, 409, 426)) {
+                        runCatching { history.acceptResponse(job.id, received) }
+                            .onSuccess { observations.record(job.id, epoch, RequestState.CURRENT) }
+                            .onFailure { observations.record(job.id, epoch, RequestState.UNAVAILABLE); history.problem(job.id, "Project identity could not be verified; saved request preserved") }
+                    } else if (job.status == "sending" && error != null && ProjectRequests.permanentSubmission(error)) {
                         history.update(job.id, "rejected", error.message ?: "Request rejected")
                     } else {
                         observations.record(job.id, epoch, if (error is BridgeException && error.code == 429) RequestState.WAITING else RequestState.UNAVAILABLE)
+                        if (error is ProjectIdentityException) history.problem(job.id, error.message ?: "Project identity mismatch; saved request preserved")
                     }
                     render()
                 }
@@ -388,6 +408,9 @@ class MainActivity : Activity() {
         val text = draft.text.toString().trim()
         if (text.isBlank() || selectedJob() != null || history.session(selectedId)?.archived == true) return
         if (text.length > 20000) { draft.error = "Keep requests under 20,000 characters"; return }
+        if (history.session(selectedId)?.let { it.projectState == ProjectState.UNBOUND || (it.projectState == ProjectState.LEGACY_UNRESOLVED && history.jobs(selectedId).isEmpty()) } == true) {
+            draft.error = "Choose or resolve this chat's project before sending"; projectPicker.show(selectedId); return
+        }
         saveDraft()
         history.add(UUID.randomUUID().toString(), selectedId, text)
         bindingDraft = true; draft.setText(""); bindingDraft = false
@@ -459,7 +482,7 @@ class MainActivity : Activity() {
             .setPositiveButton("Save", null).setNeutralButton("Test", null).setNegativeButton("Cancel", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                try { connection.save(url.text.toString(), token.text.toString()); observations.reset(); Log.i("FantasticPiMobile", "pairing saved"); dialog.dismiss(); render(); refresh() }
+                try { projectPicker.close(); connection.save(url.text.toString(), token.text.toString()); observations.reset(); Log.i("FantasticPiMobile", "pairing saved"); dialog.dismiss(); render(); refresh() }
                 catch (error: Exception) { token.error = error.message }
             }
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {

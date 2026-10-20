@@ -4,9 +4,121 @@
 
 For implementation sessions, read [docs/next-steps.md](docs/next-steps.md).
 It splits the first coding milestone into nine bounded steps with completion
-criteria. Start with **step 01 only**; update its evidence/status and stop before
-moving to another step. The roadmap below is context, not one large work request.
-No implementation step has been completed merely by writing these documents.
+criteria. **Steps 01–09 completed — 2026-10-20:** source trace and smallest compatible
+multi-project design are in [docs/multi-project-design.md](docs/multi-project-design.md).
+Step 02 added the trusted registry. Step 03 adds immutable chat/job/review bindings,
+project metadata in accepted task inputs, a frozen default and atomic legacy mapping
+before Durable resume. Legacy manifests (including manifest-only chats and incomplete
+preparation) and saved workspace metadata are checked without repair/reset; ambiguous
+or foreign evidence blocks startup. Existing IDs/worktree paths/branches/dirty state
+and dispatched-action non-replay remain intact. Default configuration cannot silently
+change after reopen. Invalid bootstrap branch/remote policy now fails at startup.
+Step 04 now routes coding and every review/test/commit/merge path through the same
+binding-aware adapter (`bridge/src/project-workspaces.js`), with revalidated cached
+managers per registered project. Removed the internal non-default execution gate;
+reopen accepts valid non-default bindings without rewriting their identities.
+Step 05 adds authenticated project listing/explicit registration, immutable chat
+binding lookup and optional job `projectId` forwarding/validation. Existing review
+routes carry accepted project identity. Registration requires explicit trusted
+source/policy confirmation and cannot execute work. Protocol 5 advertises
+`projectBindings: true`; unsupported stores reject selected-project requests with
+426. The contract, including mandatory client preflight against old bridges, is in
+[docs/project-api.md](docs/project-api.md) and README's API table.
+**Step 06 is complete; isolated Android database verification now passed.**
+`History.kt` now has schema-4 project identity/state migration source and transactional
+selection/request/binding persistence; new `ProjectRequests.kt` drives the actual
+Main/Changes Activities' capability gates and strict response ownership checks.
+Unbound new chats cannot silently select default; upgraded history/drafts remain
+legacy-unresolved until backend evidence proves a binding. Saved job/operation IDs,
+legacy review JSON, drafts, lifecycle and pairing identities are retained. Proved
+legacy targets are persisted before dispatch and attached explicitly to transport
+payloads; a lost response cannot retarget a retry to a replacement default. The
+connection helper also freezes endpoints across multi-call proof/POST sequences. Wrong
+project data cannot become a current result/approval or silently retarget a retry.
+Permanent new-submission project errors stop automatic polling; accepted uncertain
+work is not treated as stopped. Step 06 did not include a picker (step 07 below).
+Added 15 headless JVM policy tests plus fixture-only Android data tests for upgrade,
+reopen and conflict rollback; updated v1/v2 history and fixture protocol expectations.
+Both normal and `-PreliabilityTests=true` builds passed `testDebugUnitTest`,
+`assembleDebug`, `assembleDebugAndroidTest`, `lintDebug` with the existing native AAPT2
+override; **15/15 host tests passed**. `cd bridge && npm test` **67/67 passed**;
+`git diff --check` passed. After the user returned and authorized continuation,
+secure Wireless debugging rediscovery reconnected the paired phone. Native Termux ADB
+bypassed the earlier incompatible SDK ADB; fresh metadata and actual AAPT2 badging
+verified only `.reliability` / `.reliability.test` APK identities. Installed those
+previously absent fixtures and ran ONLY headless `HistoryTest` (7),
+`ProjectHistoryTest` (3), `RequestStatusTest` (4): **OK (14 tests)**, covering actual
+Android SQLite v1/v2/v3 upgrades, identity persistence/reopen, conflict rollback and
+status handling. No code fix was needed. Fixture packages were removed afterward.
+The fixture build/lint passed again; `testDebugUnitTest --rerun` actually reran all
+**15/15 host tests**, and `cd bridge && npm test` reran **67/67 passing tests**.
+Normal app versionCode 7 / 0.6.1 and install timestamp were unchanged; no normal
+database/history/pairing read or migration, Activity test, production journal access,
+bridge restart or provider action. Fresh localhost:8787 probe: ECONNREFUSED. Only
+evidence docs changed on this continuation; earlier local work is preserved, all
+uncommitted, nothing pushed.
+**Step 07 complete — 2026-10-20:** added a small native
+new-chat project picker, manual trusted-source registration with policy review and
+explicit confirmation, and persistent project identity/details for established chats.
+Existing/submitted/archived chats cannot switch projects. Empty legacy drafts need
+backend absence proof; missing/conflicting bindings, old/offline bridges and empty
+registries never fall back to default. No job is sent by selection/registration.
+Dialog/lifecycle/endpoint guards reject stale responses. Reused schema 4 without a
+new migration. Added 7 host policy tests (now **22/22 passed**) and 3 fixture-only UI
+tests. After the user explicitly said “run them”, verified secure ADB/device and
+actual isolated APK identities, installed only previously absent fixtures, and ran
+only `ProjectPickerUiTest`: **OK (3 tests)** twice. Initial run exposed a test-only
+cold-launch race (native button present but accessibility root null); reproduced it,
+fixed the bounded fixture-owned target wait, removed probe instrumentation, then
+passed both full reruns. No app runtime code fix needed. Both normal/fixture unit/
+build/test-APK/lint passed again; final host task actually reran **22/22**. Earlier
+bridge tests **67/67 passed**; diff checks clean. Both fixtures removed; normal app
+version/update metadata unchanged. No normal history/pairing access, normal Activity
+launch, production migration/restart, provider action or phone setting change.
+**Step 08 complete — 2026-10-20:** added a separate-process fixture bridge/fake RPC
+worker, real dropped-acceptance-response proxy and four headless Android lifecycle
+phases using actual Connection/ProjectRequests/History. Two projects retain exact
+job/project IDs, results, selected chat/draft/pairing across offline/client-process
+closure; B completes with no Android client and HTTP offline. Wrong results and
+approval targets fail; cancelling a third chat leaves A's approval live. Saved review
+JSON/operation ID survives response loss and recovers/retries once without duplicate
+dispatch. Per-worktree markers/source-staging checks prove no cross-writes/replay.
+The full Android lifecycle harness **passed twice**, plus **14/14 data/status**,
+**22/22 JVM**, **68/68 bridge** tests and normal/fixture build/test-APK/lint.
+An existing isolated real-tmux regression caught the controller still requiring
+protocol 4; reproduced `health-unverified` / protocol 5, allowed numeric 4/5 without
+weakening owner/idle/backup checks, and reran the same harness **PASS**. No app runtime
+or schema change. Temporary fixtures removed; normal package metadata unchanged.
+No normal history/pairing access/migration, Activity launch, production journal,
+bridge start/restart, provider, phone settings or screen-off scenario. Evidence:
+[docs/project-lifecycle.md](docs/project-lifecycle.md). Diff checks clean.
+**Step 09 complete — 2026-10-20:** after the user requested deployment/smoke,
+backed up private bridge/Android state and checked idle work. Initial legacy
+startup correctly failed on four old job snapshots lacking only repositoryRoot.
+Added a red/green regression and allowed that absent redundant field only after
+manifest/real-tree proof; conflicts/core omissions still fail, snapshots unchanged.
+Deployed normal **0.7.0 (versionCode 8)** and independently owned protocol-5 bridge.
+Actual schema **3→4** migration and final smoke checks preserved all original
+**12 sessions / 25 jobs**, pairing, **21 bridge tasks / 217 saved files** and all
+main/disposable-source HEAD/staging. Two native-selected disposable projects ran
+real Pi coding requests; matching one-file diffs inspected, explicit Changes tests
+returned **STEP09_A_TEST_OK / STEP09_B_TEST_OK**, exit 0/current revision.
+Home/reopen and completed-client force-stop/relaunch preserved B selection/result/
+binding/check; A remained independently selectable. Legacy messages/default binding
+reopened read-only (no new legacy request). **69/69 bridge**, **22/22 JVM**, normal
+build/test-APK/lint and diff checks passed. App reopened; final bridge verified,
+ready, admissions unpaused, jobs/reviews/active tasks 0, 25 terminal tasks.
+No commits/merges/pushes, screen-off/host-death test, history deletion or settings
+change. Private backups/test chats/worktrees retained. Full evidence:
+[docs/project-deployment.md](docs/project-deployment.md).
+Next: **stop — Milestone A complete**. Agree/decompose the next milestone separately.
+Implementation/test details: [docs/project-picker.md](docs/project-picker.md).
+Step-06 data evidence: [docs/android-project-state.md](docs/android-project-state.md);
+full step log: [docs/next-steps.md](docs/next-steps.md). Step-09 normal deployment
+is now verified; future disruptive deployment/tests still need agreement.
+All changes remain local/uncommitted,
+nothing pushed. The roadmap below is context, not one
+large work request.
 
 ## Current product goal and coding-first roadmap — 2026-10-19
 

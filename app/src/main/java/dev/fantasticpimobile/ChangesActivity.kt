@@ -48,10 +48,13 @@ class ChangesActivity : Activity() {
     private var modalOpen = false
     private var reader: Dialog? = null
     private var filesKey = ""
+    private var requestEpoch = 0L
+    private var blockedPending = false
+    private fun projectId() = History(this).use { it.session(sessionId)?.projectId }
     private val poll = object : Runnable {
         override fun run() {
             if (!visible) return
-            if (!modalOpen && (pending != null || snapshot?.optBoolean("busy") == true || snapshot?.optBoolean("repositoryBusy") == true)) refresh()
+            if (!modalOpen && ((pending != null && !blockedPending) || snapshot?.optBoolean("busy") == true || snapshot?.optBoolean("repositoryBusy") == true)) refresh()
             handler.postDelayed(this, 2000)
         }
     }
@@ -105,29 +108,42 @@ class ChangesActivity : Activity() {
         commitHint = textLabel("Commits whole files to this chat’s branch. Nothing pushed.", 11f, true); root.addView(commitHint)
         setContentView(root); updateButtons()
     }
-    override fun onStart() { super.onStart(); visible = true; if (::connection.isInitialized) { refresh(); handler.post(poll) } }
-    override fun onStop() { visible = false; handler.removeCallbacks(poll); super.onStop() }
+    override fun onStart() { super.onStart(); requestEpoch++; loading = false; visible = true; if (::connection.isInitialized) { refresh(); handler.post(poll) } }
+    override fun onStop() { requestEpoch++; visible = false; handler.removeCallbacks(poll); super.onStop() }
     override fun onDestroy() { reader?.dismiss(); worker.shutdown(); super.onDestroy() }
     private fun active(status: String) = status in listOf("queued", "running")
     private fun archived() = History(this).use { it.session(sessionId)?.archived ?: true }
     private fun refresh() {
         if (loading || isDestroyed) return
         loading = true; updateButtons()
+        blockedPending = false
         val waiting = pending
+        val epoch = requestEpoch; val endpoint = connection.endpoint; val expected = projectId() ?: waiting?.let { ProjectRequests.projectId(it) }
         worker.execute {
             var resolved = false
             val result = runCatching {
                 if (waiting != null) {
-                    try { connection.request("$route/actions/${waiting.getString("operationId")}"); resolved = true }
+                    try {
+                        val operation = connection.request("$route/actions/${waiting.getString("operationId")}")
+                        ProjectRequests.validateOperation(sessionId, waiting.getString("operationId"), ProjectRequests.projectId(waiting) ?: expected, operation)
+                        resolved = true
+                    }
                     catch (error: BridgeException) { if (error.code != 404) throw error }
                 }
-                connection.request("$route/changes")
+                connection.request("$route/changes").also { ProjectRequests.validateReview(sessionId, expected, it) }
             }
             handler.post {
-                if (isDestroyed) return@post
+                if (isDestroyed || !visible || epoch != requestEpoch || endpoint != connection.endpoint) return@post
                 loading = false
-                if (resolved && pending?.optString("operationId") == waiting?.optString("operationId")) clearPending()
-                result.onSuccess { render(it) }.onFailure {
+                result.mapCatching { value ->
+                    History(this).use { history -> ProjectRequests.projectId(value)?.let { history.confirmProject(sessionId, it) } }
+                    ProjectRequests.validateReview(sessionId, projectId(), value)
+                    value
+                }.onSuccess {
+                    if (resolved && pending?.optString("operationId") == waiting?.optString("operationId")) clearPending()
+                    render(it)
+                }.onFailure {
+                    blockedPending = it is ProjectIdentityException || (it is BridgeException && it.code in listOf(404, 426))
                     notice.text = if (it is BridgeException && it.code == 404) "No worktree yet. Send a message in this chat first, or update the bridge if needed." else "Could not refresh Changes: ${it.message ?: "connection error"}"
                     notice.visibility = View.VISIBLE; snapshot = null; updateButtons()
                 }
@@ -203,9 +219,10 @@ class ChangesActivity : Activity() {
     }
     private fun showDiff(path: String, scope: String) {
         val revision = snapshot?.getString("revision") ?: return
+        val expected = projectId(); val epoch = requestEpoch; val endpoint = connection.endpoint
         worker.execute {
-            val result = runCatching { connection.request("$route/diff?scope=$scope&revision=$revision&path=${URLEncoder.encode(path, "UTF-8")}") }
-            handler.post { if (!isDestroyed) result.onSuccess { showText(path, it.getString("text") + if (it.optBoolean("truncated")) "\n\n[Preview truncated; inspect the full file before committing.]" else "", true) }.onFailure { toast(it.message ?: "Diff unavailable; refresh") } }
+            val result = runCatching { connection.request("$route/diff?scope=$scope&revision=$revision&path=${URLEncoder.encode(path, "UTF-8")}").also { ProjectRequests.validateProject(expected, it) } }
+            handler.post { if (!isDestroyed && visible && epoch == requestEpoch && endpoint == connection.endpoint) result.onSuccess { showText(path, it.getString("text") + if (it.optBoolean("truncated")) "\n\n[Preview truncated; inspect the full file before committing.]" else "", true) }.onFailure { toast(it.message ?: "Diff unavailable; refresh") } }
         }
     }
     private fun showRepositoryDetails() {
@@ -275,6 +292,7 @@ class ChangesActivity : Activity() {
         dialog.setOnDismissListener { modalOpen = false }; dialog.show()
     }
     private fun queueAction(body: JSONObject) {
+        ProjectRequests.projectId(snapshot ?: return)?.let { body.put("projectId", it) }
         body.put("operationId", UUID.randomUUID().toString())
         if (!preferences.edit().putString("pending-$sessionId", body.toString()).commit()) { toast("Could not save request ID; nothing submitted"); return }
         pending = body; sendAction(body)
@@ -283,14 +301,25 @@ class ChangesActivity : Activity() {
     private fun sendAction(body: JSONObject) {
         if (loading) return
         loading = true; updateButtons()
+        val epoch = requestEpoch; val endpoint = connection.endpoint; val expected = projectId()
         worker.execute {
-            val result = runCatching { connection.request("$route/actions", body) }
+            val result = runCatching {
+                fun checkOwner() {
+                    if (epoch != requestEpoch || endpoint != connection.endpoint) throw ProjectIdentityException("Bridge connection changed; operation preserved")
+                }
+                ProjectRequests(beforeLegacySubmit = { project ->
+                    checkOwner(); History(this).use { it.confirmProject(sessionId, project) }
+                }, request = { path, payload ->
+                    checkOwner(); connection.requestAt(endpoint, path, payload)
+                }).sendReview(sessionId, body, expected)
+            }
             handler.post {
-                if (isDestroyed) return@post
+                if (isDestroyed || !visible || epoch != requestEpoch || endpoint != connection.endpoint) return@post
                 loading = false
                 result.onSuccess { clearPending(); refresh() }.onFailure {
+                    blockedPending = it is ProjectIdentityException || (it is BridgeException && it.code in listOf(404, 426))
                     // Definite validation/admission rejections did not dispatch the operation.
-                    if (it is BridgeException && it.code in listOf(400, 409, 413)) clearPending()
+                    if (it is BridgeException && it.code in listOf(400, 404, 409, 413)) clearPending()
                     notice.text = it.message ?: "Response uncertain. Refresh checks the saved operation ID; retry uses the same ID."
                     notice.visibility = View.VISIBLE; updateButtons()
                 }

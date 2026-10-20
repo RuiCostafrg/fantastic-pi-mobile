@@ -6,12 +6,17 @@ import { pathToFileURL } from 'node:url';
 import { openStore, validSessionId, DEFAULT_MAX_CONCURRENT } from './store.js';
 import { log } from './log.js';
 
+const validProjectId = value => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(value);
+const projectView = ({ projectId, name, source, repositoryRoot, subdirectory, branchPolicy }) =>
+  ({ projectId, name, source, repositoryRoot, subdirectory, branchPolicy });
+
 export function makeServer(store, token, logger = log) {
+  const projectBindings = store.projectBindings === true;
   const expected = Buffer.from('Bearer ' + token);
   return createServer(async (req, res) => {
     const started = Date.now();
     // Classify, do not log arbitrary URLs (which may contain secrets).
-    const route = req.url === '/health' ? 'health' : req.url === '/v1/jobs' ? 'submit' : /^\/v1\/jobs\/[a-zA-Z0-9-]{8,80}(?:\/(cancel|ui))?$/.test(req.url ?? '') ? 'job' : /^\/v1\/sessions\/[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}\/(changes|diff|actions)(?:[/?]|$)/.test(req.url ?? '') ? 'review' : 'other';
+    const route = req.url === '/health' ? 'health' : req.url === '/v1/jobs' ? 'submit' : /^\/v1\/jobs\/[a-zA-Z0-9-]{8,80}(?:\/(cancel|ui))?$/.test(req.url ?? '') ? 'job' : req.url === '/v1/projects' || /^\/v1\/sessions\/[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}\/project$/.test(req.url ?? '') ? 'project' : /^\/v1\/sessions\/[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}\/(changes|diff|actions)(?:[/?]|$)/.test(req.url ?? '') ? 'review' : 'other';
     res.on('finish', () => logger('http.complete', { method: ['GET', 'POST'].includes(req.method) ? req.method : 'other', route, httpStatus: res.statusCode, durationMs: Date.now() - started }));
     const send = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
     const actual = Buffer.from(req.headers.authorization ?? '');
@@ -19,7 +24,7 @@ export function makeServer(store, token, logger = log) {
     try {
       const url = new URL(req.url, 'http://localhost');
       const path = url.pathname;
-      if (req.method === 'GET' && path === '/health') return send(200, { ok: true, runtime: 'pi-durable', processId: process.pid, protocolVersion: 4, worktreeIsolation: true, changesReview: true, maxConcurrent: store.maxConcurrent ?? DEFAULT_MAX_CONCURRENT });
+      if (req.method === 'GET' && path === '/health') return send(200, { ok: true, runtime: 'pi-durable', processId: process.pid, protocolVersion: projectBindings ? 5 : 4, worktreeIsolation: true, changesReview: true, projectBindings, maxConcurrent: store.maxConcurrent ?? DEFAULT_MAX_CONCURRENT });
       let body = {};
       if (req.method === 'POST') {
         const chunks = []; let size = 0;
@@ -31,6 +36,22 @@ export function makeServer(store, token, logger = log) {
         try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return send(400, { error: 'Invalid JSON' }); }
         if (!body || typeof body !== 'object' || Array.isArray(body)) return send(400, { error: 'Expected an object' });
       }
+      if (Object.hasOwn(body, 'projectId')) {
+        if (!validProjectId(body.projectId)) return send(400, { error: 'projectId must be a nonempty opaque ID (up to 80 letters, numbers, underscores or hyphens)' });
+        if (!projectBindings) return send(426, { error: 'Project bindings are not supported by this bridge. Upgrade before submitting a selected project.' });
+      }
+      if (path === '/v1/projects' && ['GET', 'POST'].includes(req.method)) {
+        if (!projectBindings) return send(426, { error: 'Project bindings are not supported by this bridge.' });
+        if (req.method === 'GET') return send(200, { projects: (await store.listProjects()).map(projectView) });
+        if (body.confirmRegistration !== true) return send(400, { error: 'Deliberate registration requires confirmRegistration: true after reviewing the trusted source and branch policy.' });
+        return send(200, projectView(await store.registerProject({ source: body.source, name: body.name, branchPolicy: body.branchPolicy })));
+      }
+      const binding = path.match(/^\/v1\/sessions\/([a-zA-Z0-9][a-zA-Z0-9_-]{0,79})\/project$/);
+      if (req.method === 'GET' && binding) {
+        if (!projectBindings) return send(426, { error: 'Project bindings are not supported by this bridge.' });
+        const project = await store.getSessionProject(binding[1]);
+        return project ? send(200, project) : send(404, { error: 'This chat has no accepted project binding.' });
+      }
       if (path === '/v1/maintenance') {
         if (req.method === 'GET') return send(200, await store.maintenance());
         if (req.method === 'POST') {
@@ -41,7 +62,7 @@ export function makeServer(store, token, logger = log) {
       if (req.method === 'POST' && path === '/v1/jobs') {
         if (typeof body.requestId !== 'string' || !/^[a-zA-Z0-9-]{8,80}$/.test(body.requestId) || typeof body.text !== 'string' || !body.text.trim() || body.text.length > 20000) return send(400, { error: 'Provide requestId (8–80 letters/numbers/hyphens) and text (1–20000 characters)' });
         if (Object.hasOwn(body, 'sessionId') && !validSessionId(body.sessionId)) return send(400, { error: 'sessionId must be 1–80 letters, numbers, underscores or hyphens, starting with a letter or number' });
-        return send(202, await store.submit(body.requestId, body.text, body.sessionId));
+        return send(202, await store.submit(body.requestId, body.text, body.sessionId, body.projectId));
       }
       const session = path.match(/^\/v1\/sessions\/([a-zA-Z0-9][a-zA-Z0-9_-]{0,79})\/(changes|diff|actions)(?:\/([a-zA-Z0-9-]{8,80})(\/cancel)?)?$/);
       if (session) {
