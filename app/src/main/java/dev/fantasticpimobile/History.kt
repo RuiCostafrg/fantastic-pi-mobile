@@ -13,7 +13,8 @@ enum class ProjectState { UNBOUND, LEGACY_UNRESOLVED, SELECTED, BOUND }
 
 data class Job(val id: String, val text: String, val status: String, val answer: String,
     val sessionId: String, val progress: String, val pending: String,
-    val projectId: String? = null, val projectState: ProjectState = ProjectState.LEGACY_UNRESOLVED) {
+    val projectId: String? = null, val projectState: ProjectState = ProjectState.LEGACY_UNRESOLVED,
+    val approvalOccurrenceId: String? = null) {
     val active get() = status in listOf("sending", "queued", "running")
 }
 
@@ -28,9 +29,9 @@ data class ChatSession(val id: String, val title: String, val draft: String, val
     val active get() = status in listOf("sending", "queued", "running")
     // A completed Pi turn is not a user-finished task. Approvals outrank background work.
     val section get() = when {
-        archived -> ChatSection.ARCHIVED
         needsApproval -> ChatSection.ATTENTION
         active -> ChatSection.WORKING
+        archived -> ChatSection.ARCHIVED
         finished -> ChatSection.FINISHED
         status == null -> ChatSection.NEW
         else -> ChatSection.ATTENTION
@@ -38,12 +39,13 @@ data class ChatSession(val id: String, val title: String, val draft: String, val
 }
 
 /** Owns chat organization, migration and per-chat single-flight admission. IDs never depend on titles. */
-class History(context: Context, name: String = "fantastic-pi-mobile.sqlite") : SQLiteOpenHelper(context, name, null, 4) {
+class History(context: Context, name: String = "fantastic-pi-mobile.sqlite") : SQLiteOpenHelper(context, name, null, 5) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE jobs (id TEXT PRIMARY KEY, text TEXT NOT NULL, status TEXT NOT NULL, answer TEXT NOT NULL DEFAULT '', created INTEGER NOT NULL, sessionId TEXT NOT NULL DEFAULT 'pocket', progress TEXT NOT NULL DEFAULT '', pending TEXT NOT NULL DEFAULT '')")
         createSessions(db)
         addLifecycle(db)
         addProjects(db, false)
+        ConversationCache.create(db)
     }
     private fun addProjects(db: SQLiteDatabase, legacy: Boolean) {
         for (table in listOf("sessions", "jobs")) {
@@ -71,6 +73,7 @@ class History(context: Context, name: String = "fantastic-pi-mobile.sqlite") : S
         }
         if (oldVersion < 3) addLifecycle(db)
         if (oldVersion < 4) addProjects(db, true)
+        if (oldVersion < 5) ConversationCache.create(db)
     }
     fun sessions(): List<ChatSession> = readableDatabase.rawQuery("""
         SELECT s.id,s.title,s.draft,s.pinned,s.updated,
@@ -90,6 +93,17 @@ class History(context: Context, name: String = "fantastic-pi-mobile.sqlite") : S
             put("id", id); put("title", "New chat"); put("created", now); put("updated", now)
         })
         return id
+    }
+    /** New remote identities get local organization; existing titles/drafts/flags are untouched. */
+    internal fun ensureRemoteSession(id: String, projectId: String?) {
+        require(ProjectRequests.validId(id))
+        if (session(id) == null) {
+            val now = System.currentTimeMillis()
+            writableDatabase.insertOrThrow("sessions", null, ContentValues().apply {
+                put("id", id); put("title", "Chat ${id.take(12)}"); put("created", now); put("updated", now)
+            })
+        }
+        if (projectId != null) confirmProject(id, projectId)
     }
     fun rename(id: String, title: String) {
         require(title.trim().isNotEmpty() && title.trim().length <= 80) { "Use a name between 1 and 80 characters" }

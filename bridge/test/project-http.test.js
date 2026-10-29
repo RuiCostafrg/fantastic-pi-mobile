@@ -74,7 +74,7 @@ test('authenticated project discovery/registration and two-project HTTP jobs/rev
     assert.equal((await req(path, body, { auth: false })).status, 401);
   }
   const health = await req('/health');
-  assert.equal(health.body.protocolVersion, 5); assert.equal(health.body.projectBindings, true);
+  assert.equal(health.body.protocolVersion, 6); assert.equal(health.body.projectBindings, true);
   assert.equal(health.body.worktreeIsolation, true); assert.equal(health.body.changesReview, true);
   const listing = await req('/v1/projects'); assert.equal(listing.status, 200); assert.equal(listing.body.projects.length, 1);
   const pa = listing.body.projects[0]; assert.equal(pa.source, f.a);

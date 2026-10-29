@@ -1,10 +1,252 @@
 # Fantastic Pi Mobile recovery and progress
 
+## Current checkpoint — C01 personal-chat design complete (2026-10-27)
+
+**C01 only complete; stop before C02a for design approval.**
+[Personal-chat design](docs/personal-chat-design.md) traces the source seams and
+selects immutable `chatKind` identity, explicit repository-free personal startup,
+private stable non-Git directories, opt-in client views and a constrained Pi CLI
+profile with no model action tools. Coding bindings/worktrees/review and B's
+canonical history/original-ID/non-replay contracts remain unchanged. C02/C03 are
+split into a/b steps in [the roadmap](docs/next-steps.md); recommend C02a's coding
+identity sidecar and disposable migration tests only after approval.
+
+Source and installed Pi 1.4.0 documentation inspection only; no runtime behavior or
+production binary compatibility proved. Actual Pi/local fake-provider tool-policy
+verification is a future blocking gate, not a claimed pass. Only these design/
+progress docs changed; pre-existing local implementation retained. No runtime code,
+configuration/schema change, build/test run, production data/runtime probe,
+provider/device action, deployment, commit or push. B11 remains complete; its
+historical owner-health evidence below was not refreshed in this session.
+
+## Previous checkpoint — B11 deployed; live continuity verified (2026-10-23)
+
+**Milestone B complete. Stop after B.** Recovered October 23 deployment/gate evidence,
+then freshly verified stale-owner recovery without replay and completed normal-app /
+real-provider **Android → B09 terminal → detach while running → Android** smoke.
+Exactly two ordered canonical turns share chat/project/worktree; terminal's 45-second
+command completed after detach and Android showed the result/context once.
+
+All **29 original Android jobs**, **28 original bridge tasks**, and **232 original
+Pi/worktree/config/manifest hashes** preserved. Original 15 chats retain content and
+organization; eight additive legacy bindings validated against the owner. One new
+smoke chat/local job, two backend turns, expected shared cache/import state; pairing
+unchanged, only selected-chat preference changed. Old chat/Changes safety observed
+without replay. One healthy protocol-6 owner, zero active work, admissions open.
+Recovered gates: **159/159 bridge**, Android build/unit/test-APK/lint and isolated
+controller passed; no new heavy rerun/source changes. Gboard/settings unchanged.
+HEAD/index preserved; existing implementation remains local/uncommitted/unpushed.
+[Actual recovery, visible outcomes, preservation, evidence and limits](docs/b11-deployment.md).
+No screen-off/host-death guarantee or next-milestone work implied.
+
+## Previous checkpoint — B11 agreed; readiness blocked (2026-10-21)
+
+User agreed to the bounded B11 plan. Fresh controller discovery reports missing
+storage lock, not proved idleness; no dedicated bridge window observed. Phone
+readiness requests manual unlock; preflight reports screen off and Gboard active.
+Stopped before normal-app data/backup/install/migration/launch, bridge startup or
+provider work. No settings changed; no test/build rerun or completion inferred.
+[Actual evidence, unavailable gates and continuation plan](docs/b11-deployment.md).
+Only these checkpoint/evidence docs change; prior local work retained. B11 remains
+incomplete. Ask user to wake/unlock and leave the phone on before continuing.
+
+## Previous checkpoint — B10 isolated cross-client continuity verified (2026-10-21)
+
+**B10 complete in source/disposable fixtures; stop before B11.** Actual headless
+Android/SQLite sends the first project-A turn; the real B09 terminal opens that
+exact chat, sends the next turn and detaches while independent fake RPC work runs.
+Both clients absent/HTTP offline at completion; Android reopens and reconciles
+ordered original-ID transcript/result/cursor/approval state once. Project B stays
+independently active. Real two-client Send/approval rendezvous, lost Android and
+terminal acceptance/approval responses, process reopen, duplicate-page adoption,
+exact old-run Stop and idle owner reopen pass. Separate seed/owner processes prove
+undispatched original-task resume once and dispatched coding/review/answered approval
+interruption without replay. Worktree context/dispatch/reply markers and actual
+branch/HEAD/manifest bytes, source HEAD/staging, drafts/pairing/organization and
+saved review JSON/operation IDs are asserted, not inferred from display text.
+
+**9/9 new Android phases + 30/30 existing headless Android, 36/36 JVM, 159/159 bridge**
+passed; isolated reliability APK/test-APK build/lint and isolated real-tmux controller
+passed. No runtime/protocol/schema changes. Only exact verified reliability APKs
+installed; both absent before/after. New credentials use private files/stdin, never
+argv/URLs/logs/Git. [Commands, failures, evidence, preservation and limits](docs/cross-client-continuity.md).
+Earlier uncommitted work preserved. No normal-app data/install/migration/launch,
+visible UI, production bridge operation/restart, deployment, real provider, phone
+setting change, commit or push. **B11 not started; source remains local.**
+
+## Previous checkpoint — B09 terminal HTTP client verified (2026-10-21)
+
+**B09 complete in source/disposable process fixtures; stop before B10.** Added
+`scripts/conversation-client.mjs`: HTTP-only JSON-lines list/open/read/Send, exact
+approval responses, separately confirmed run-scoped Stop and detach. Private atomic
+owner/cursor/outbox/response-ID persistence precedes dispatch; original-ID GET-first
+Send recovery and non-replayable approval receipt recovery. Strict capability/schema/
+owner/endpoint/credential gates; no legacy transport, journal/Pi session access,
+bridge/provider launch or execution ownership. Historical evidence stays read-only.
+EOF/Ctrl-C/explicit detach never cancel backend work.
+
+**10/10 new process tests and 158/158 full bridge tests passed**, zero failures/skips.
+Independent disposable HTTP/Durable owner and client processes, fake workers and
+actual socket loss prove completed remote discovery, paginated/duplicate/replayed
+reads, lost Send/approval responses, reconnect, approval races, exact Stop isolation
+(including later same-chat work), private pre-dispatch IDs and detach non-cancellation.
+[Usage, changed files, failures, actual evidence and limits](docs/terminal-conversations.md).
+No server/Android schema/protocol/dependency change. Earlier uncommitted work retained;
+no normal-app install/data access/migration, production bridge operation/restart,
+deployment, real provider, phone test, commit or push. **B10 not started.**
+
+## Previous checkpoint — B08 shared Android foreground flows verified (2026-10-21)
+
+**B08 complete in source/isolated fixtures; stop before B09.** Foreground catalogue,
+transactional snapshot/feed/history reconciliation, stable original-ID outbox and
+import recovery now drive the native Android view. Discover remote completed/active
+chats even without local jobs; archived/finished remote activity remains visible
+without clearing organization. Strict capability/owner/endpoint/credential/lifecycle
+proofs, exact fresh occurrence approvals with persisted non-replayable answer IDs,
+run-targeted Stop and owner-scoped existing Changes operation recovery. Historical
+and unresolved evidence stays inert; uncertain shared sends never downgrade to legacy.
+
+**36/36 JVM, 148/148 bridge, normal/fixture APK + test-APK build/lint, isolated
+real-tmux controller and 35/35 actual Android tests passed**, no failures/skips.
+Android: 19 existing data, 11 new headless real SQLite/HTTP, 1 new visible native
+flow, 3 legacy picker and 1 legacy approval-status UI regression. Announced live
+fixture discovery/Send/Stop/approval/reopen passed repeatedly; actual dropped
+acceptance/import/approval/review responses recovered without duplicate execution.
+Caught/fixed hidden Android buffered-POST retry, outer-transaction conflict loss
+and remote-busy discovery/targeting; fixture label/preflight timing fixes recorded.
+
+[Contract, changed files, commands, failures and evidence](docs/android-shared-conversations.md).
+Schema remains 5; existing local IDs/organization/drafts/pairing/review JSON retained.
+Only verified `.reliability` / `.reliability.test` fixtures installed; previously
+absent and removed afterward. All earlier uncommitted work preserved. No normal-app
+installation/data access/migration, production bridge operation/restart, deployment,
+real provider, terminal client, commit or push. Source remains local, not deployed.
+
+## Previous checkpoint — B07 storage and Android SQLite verification complete (2026-10-21)
+
+**B07 only; stop before B08.** Additive Android schema **4→5** adds owner-scoped
+transcript/history cache, full cursor/continuation persistence, immutable import
+manifests/acknowledgements and inert links to existing outbox IDs. Snapshot staging
+and final cursor adoption, feed upserts/cursor advancement and receipt/link writes
+are transactional. Wrong owner/schema/project, gaps and conflicting identity/content
+fail closed with retained original/local conflict evidence. No remote or historical
+adoption writes legacy sessions/jobs, submits work or makes cached approvals or
+unresolved sends actionable. No Activity/UI/transport integration.
+
+**B07 device gate passed: OK (19 tests)** on actual Android 12 SQLite, only
+`ConversationCacheTest` (9), `HistoryTest` (7), `ProjectHistoryTest` (3), zero failures
+or skips. Covers supported v1–v4 upgrades, schema/page/ack rollback, reopen,
+duplicate/gapped pages, historical-only imports and unresolved outbox rows. Explicit
+user authorization preceded secure device rediscovery, fixture build and exact APK/
+runner target identity verification. Only `dev.fantasticpimobile.reliability` and
+`.reliability.test` were installed; both were absent beforehand and removed afterward.
+No code fix needed. Fixture build/test-APK/lint passed again; prior **33/33 JVM
+(11 new), 148/148 bridge**, isolated real-tmux and normal build/lint results remain
+implementation evidence, not a new bridge run. [Commands/results and limits](docs/android-conversation-cache.md).
+Only the three requested progress/evidence documents changed in this continuation;
+existing uncommitted work retained. No normal-app installation/data access/migration,
+Activity/visible UI tests, production bridge operation, deployment, provider work,
+commit or push. Legacy IDs/titles/drafts/organization, selection/pairing, review JSON/
+operation IDs and project/worktree bindings remain outside the new storage write set.
+**B07 complete in source/isolated fixtures; stop before B08.**
+
+## Previous checkpoint — B06 complete in source/synthetic fixtures (2026-10-21)
+
+**B06 only is complete; stop before B07.** Added bounded, versioned per-chat history
+manifests with digest/import-ID receipts and immutable conflict evidence in the
+existing locked journal. Backend-known IDs reference canonical results; local-only
+cards remain historical-unverified or unresolved-outbox with original IDs/order/
+provenance. No imported task, project binding, worktree, approval or review dispatch.
+Unproved histories stay read-only; all Send paths reject imported local-only IDs.
+Explicit history capability/schema gates and opt-in catalogue/read pages preserve
+B05 execution-only views and event cursors. Startup validates retained evidence.
+
+**13/13 new, 45/45 combined and 148/148 full bridge tests passed**, zero failures/
+skips; isolated real-tmux controller, syntax/whitespace/local Markdown checks passed.
+Fixtures prove real lost import-response recovery, conflict/no-partial-adoption,
+rollback after prepared writes, competing imports/Send and no cached-dialog action.
+Synthetic preferences/review JSON, real fixture jobs/reviews/tasks/bindings, source
+HEAD/staging and dirty-worktree/Pi file bytes preserved. No production data/config
+access/import, deployment/restart, installation, provider/phone test, commit or push.
+No Android schema/cache/UI or terminal work; existing uncommitted work retained.
+[Import contract, files, tests and limits](docs/conversation-history-import.md).
+
+## Previous checkpoint — B05 complete in source/fixtures (2026-10-21)
+
+**B05 only is complete; stop before B06.** Added authenticated catalogue/create/
+bounded snapshot/event HTTP mapping inside the existing single locked owner,
+shared Send via jobs, exact approval receipts and run-targeted Stop. Numeric
+protocol 6 + literal conversation capability + event schema 1 + stable owner/header
+gates; old job/session/project/review routes retain their behavior. Strict controller
+accepts numeric 4/5/6 and validates protocol-6 capability/schema/owner metadata
+without weakening ownership, idle or backup checks.
+
+**6/6 new HTTP/transport, 32/32 focused, 135/135 full bridge and 22/22 JVM passed**;
+isolated real-tmux controller and syntax/whitespace/local Markdown checks passed.
+Fixtures cover response loss without redispatch, pinned pagination, completed remote
+turn discovery, competing exact approvals and cross-chat Stop refusal. Production
+data/runtime, normal app and existing chats/worktrees were not touched; no
+deployment, production bridge restart, installation, commit or push. Earlier local/
+untracked work preserved. [B05 contract and evidence](docs/conversation-api.md).
+No B06 import, Android cache migration or terminal client was implemented.
+
+## Previous checkpoint — B04b and live regression smoke complete (2026-10-21)
+
+**B01–B04 are complete; next is B05 only.** The user's latest continuation also
+explicitly requested a live phone test, superseding earlier stop/source-only limits
+for this bounded step. `approval-responses.js` adds exact owner/chat/project/run/
+occurrence claims, durable normalized response-ID receipts and unknown/attempted
+non-replay semantics. A per-run gate serializes answer delivery, replacement,
+completion and Stop; legacy `/ui` uses it only for unambiguous raw IDs. Repeated raw
+IDs fail closed. RPC pipe callbacks are bounded and are not external-effect acks.
+
+**10/10 new tests; 129/129 full bridge; 22/22 JVM; normal Android build/lint;
+isolated real-tmux controller; syntax/whitespace/local Markdown checks passed.**
+Privately backed up idle bridge/Android state, then started the compatible protocol-5
+bridge in its dedicated tmux window. Actual normal-app/real-Pi disposable-project
+coding changed only `hello.txt`; native diff and Changes test **B04B_CHECK_OK** /
+exit 0/current revision passed. Home/reopen preserved state; a second harmless
+sleep request remained live while away and native Stop produced CANCELLED.
+Original **14 Android chats / 27 jobs**, **25 bridge task rows**, **227 saved
+worktree/Pi files**, pairing and source HEAD/staging preserved exactly. Final owner
+verified/idle, admissions unpaused, app still 0.7.0/schema 4; no app installation.
+No new shared HTTP capability, terminal client, live approval-race injection,
+screen-off/host-death test, source commit/merge/push or history deletion. Changes
+remain local/uncommitted. [Contract, evidence and limits](docs/approval-response-delivery.md).
+Earlier dated “stop/no deployment” statements below are historical checkpoints.
+
 ## Run one small step at a time
 
 For implementation sessions, read [docs/next-steps.md](docs/next-steps.md).
-It splits the first coding milestone into nine bounded steps with completion
-criteria. **Steps 01–09 completed — 2026-10-20:** source trace and smallest compatible
+It records completed Milestone A (01–09) and planned Milestone B (B01–B11),
+with bounded steps and completion criteria. **B01, B02 and B03a/b/c complete in source/fixtures.**
+**B03c completed in a separate fresh session: 8/8 new, 37/37 combined focused,
+111/111 full bridge tests**, zero failures/skips. Supported Durable transaction
+capture pins immutable references/high-water; count/whole-envelope byte bounds,
+separate snapshot/feed tokens and pinned feed upper bound. [Protocol/evidence and
+limits](docs/conversation-bounded-reads.md). No HTTP/health/capability change.
+**B04a complete in source/fixtures — 2026-10-21:** 8/8 new, **45/45 focused,
+119/119 full bridge tests** passed, zero failures/skips. Durable owner/run/chat/
+project-scoped observations, fresh identity for repeated raw questions, atomic
+expiry + Job pointer + B03 revision, pre-resume validation/expiry and detached
+non-actionable internal inspector. [Layout, red/green logs and limits](docs/approval-occurrence-lifecycle.md).
+Syntax/whitespace and local Markdown link checks passed (see roadmap evidence).
+At that B04a checkpoint, B04b and deployment were not yet authorized. The current
+B04b completion/live-smoke checkpoint above supersedes that stop; B05 remains
+unimplemented. All earlier local/untracked work was preserved.
+B03a transition staging passed **8/8 focused and 92/92 full bridge tests**.
+**B03b is now complete in source/fixtures: 11/11 new, 29/29 combined focused,
+103/103 full bridge tests passed.** [Live-write evidence](docs/conversation-live-writes.md).
+No B deployment. The authorized fresh-session B03b→B03c sequence is complete;
+separate persisted Pi coding sessions `b03b` and `b03c` both exited 0, verified by
+the supervisor together with final test logs, roadmap/source/whitespace checks.
+B04 approval claims/receipts remain unimplemented. The later user continuation
+selected only B04a occurrence lifecycle, now complete; B04b remains a later request. No deployment,
+production operations or phone tests authorized.
+Evidence: [transition staging](docs/conversation-transition.md),
+[baseline storage](docs/conversation-baseline-storage.md) and prior
+[B01 characterization](docs/conversation-contract-baseline.md).
+**Steps 01–09 completed — 2026-10-20:** source trace and smallest compatible
 multi-project design are in [docs/multi-project-design.md](docs/multi-project-design.md).
 Step 02 added the trusted registry. Step 03 adds immutable chat/job/review bindings,
 project metadata in accepted task inputs, a frozen default and atomic legacy mapping
@@ -111,7 +353,91 @@ ready, admissions unpaused, jobs/reviews/active tasks 0, 25 terminal tasks.
 No commits/merges/pushes, screen-off/host-death test, history deletion or settings
 change. Private backups/test chats/worktrees retained. Full evidence:
 [docs/project-deployment.md](docs/project-deployment.md).
-Next: **stop — Milestone A complete**. Agree/decompose the next milestone separately.
+The explicitly authorized fresh-session continuation through B03c is complete;
+stop. Milestone A, B01/B02 and B03a/b/c are complete in source/fixtures.
+B04–B11 remain incomplete. No B deployment; baseline/staging
+inspectors are not live client interfaces. See
+[shared conversation design](docs/shared-conversation-design.md) and the
+[B01–B11 roadmap](docs/next-steps.md#milestone-b--one-conversation-core-android--terminal--android).
+The planning pass traced Android history/request/approval/review persistence,
+HTTP/store/Durable/RPC events, project/worktree identity and independent ownership.
+Choose an additive conversation/event projection inside the same locked owner,
+retain real Pi execution, reconcile Android as a cache/outbox and add a minimal
+terminal HTTP client (not stock Pi session resume or a second executor). Preserve
+all existing chats/IDs/bindings/worktrees and dispatched-action non-replay.
+The initial planning pass changed docs only. The authorized B01 continuation added
+`bridge/test/conversation-contract.test.js`, synthetic Android v4 comparison JSON
+and [baseline evidence](docs/conversation-contract-baseline.md): **5/5 focused** and
+**74/74 full bridge tests passed**, zero failures/skips. Exact request/project/task/
+operation identity, concurrent admission, Pi session args, dialog/Stop isolation,
+dispatched coding/approval/review non-replay, source staging and dirty worktrees are
+characterized through existing store/HTTP flows. Inventory distinguishes backend
+results/binding-only chats from Android-only historical or uncertain rows; no import
+or Android SQLite upgrade is claimed. Initial test-only string-task-ID assumption
+failed and was corrected to numeric Durable IDs; no runtime code fix needed.
+At B01, no core/schema/routes/protocol/Android behavior changed.
+**B02 complete — 2026-10-20:** new `bridge/src/conversations.js` and 10 migration
+regressions; `store.js` initializes owner/conversation/turn/review baseline documents
+in the existing binding transaction before Durable resume. Stable owner UUID,
+existing chat/request/project/task IDs, role-qualified messages, marked legacy order
+and cursor generation/sequence 0; original Jobs/Reviews/Bindings remain execution
+authority. Internal historical reads only, no HTTP/protocol change. **10/10 focused**
+and **84/84 full bridge tests passed**, plus syntax/diff/doc checks. Tests prove
+repeated reopen, rollback after prepared writes/marker, conflict refusal/retry,
+old task inputs/entries/Pi files/dirty worktrees and multi-project bindings retained,
+undispatched work once and dispatched coding/dialog/review interruption without
+replay. The original dispatched memo guards and runner paths remain unchanged.
+Full layout/evidence/limitations: [conversation-baseline-storage.md](docs/conversation-baseline-storage.md).
+B02's one-time baseline deliberately excludes later writes/recovery changes; B03
+must reconcile that interval atomically before enabling live events/attachment.
+No production state access/probe/migration, provider, production bridge operation,
+Android build/test, deployment, phone test, commit or push. B02 completed before B03a.
+**B03a complete — 2026-10-20:** split B03 before implementation. Additive staged
+transition/revision/snapshot/reset documents in `conversation-projection.js`, called
+inside the binding/B02 transaction before resume. Preserve owner/generation,
+message/run/project IDs and existing ordinals; append reconstructed new order.
+Immutable snapshots and per-record revisions retain old evidence; unobserved
+changes generate only snapshot.reset, unchanged reopen emits nothing. Internal
+`getStagedConversation` is explicitly stagedOnly/liveWrites:false/historical-only
+approval evidence, not a current transcript or attachment capability.
+**8/8 focused and 92/92 full bridge tests passed**, zero failures/skips. Tests cover
+post-baseline inclusion, ordering/key-order idempotency, old snapshot retention/gap
+refusal, transactional fault/conflict rollback and corrected retry (including
+first-time B02/project mapping), foreign reset schema/generation and changed
+accepted-input refusal. Real fake-RPC pending recovery dispatches once, rejects a
+stale reply and retains worktree manifest/dirty effect/source staging. Source syntax,
+whitespace and documentation checks accompany [evidence](docs/conversation-transition.md).
+No production bridge data/config access, operation, deployment, phone test, normal
+installation, commit or push. B03b/c now explicitly approved in separate fresh Pi
+coding sessions; they are not completed by this entry. Stop after B03c.
+**B03b complete — 2026-10-20:** explicit atomic staged→live promotion repeats
+reconciliation before resume; preserves immutable B02/B03a evidence and stable IDs,
+generations/ordinals. `conversation-live.js` writes per-record immutable revisions
+and ordered events inside every existing admission/progress/result/pending/reply/
+completion/abort/recovery/review transaction. Duplicate admissions/identical updates
+emit nothing; original dispatched guards/Jobs/Reviews/Bindings remain authoritative.
+Internal live inspector only; staged inspector refuses live mode. **11/11 new,
+29/29 B02/B03a/B03b focused and 103/103 full bridge tests passed**, zero failures/
+skips; JS syntax, diff whitespace and local Markdown links passed. Fixtures cover
+rollback after prepared heads/events/promotion, no task/input/binding leakage,
+repeated recovery without redispatch, fail-closed live drift and two-project isolation.
+No production access/operation, provider, deployment, phone test, commit or push.
+At B03b completion, B03c bounded reads and B04 approval claims/receipts were not
+implemented. B03c is now implemented separately; B04 remains unimplemented.
+Raw pending is not action proof; the B03b inspector stays unbounded/non-consistent. [Evidence and commands](docs/conversation-live-writes.md).
+The B03b session stopped; B03c completed in its separately authorized fresh session.
+**B03c complete — 2026-10-20:** new `conversation-reads.js` and eight regressions;
+`store.js` adds internal read methods using existing Durable root transactions.
+Immutable reference manifests, snapshot high-water/catch-up cursors, pinned feed
+upper bounds, complete ordered history and explicit identity/schema/gap/oversize
+errors; defaults 50 items/262144 bytes, allowed 1–200/1024–1048576 bytes for the
+entire serialized response. One user/result card per run and retained revisions/
+reset snapshots across startup. **8/8 new, 37/37 focused, 111/111 full bridge**;
+syntax/diff/local Markdown checks passed. [Exact evidence/limits](docs/conversation-bounded-reads.md).
+No production data/config/runtime access, provider, HTTP/health/capability change,
+phone/deployment, dependency install, source commit/push/index change or another
+agent. Earlier B01/B02/B03a/b work preserved. B03 complete in source/fixtures only;
+B04–B11 remain unimplemented. Stop before B04.
 Implementation/test details: [docs/project-picker.md](docs/project-picker.md).
 Step-06 data evidence: [docs/android-project-state.md](docs/android-project-state.md);
 full step log: [docs/next-steps.md](docs/next-steps.md). Step-09 normal deployment
@@ -162,7 +488,12 @@ would require a separately scoped design and platform checks.
   PC/web clients initially connect to that owner; offline multi-writer sync is not
   part of the first milestone. Phone hosting must be reachable/alive for remote use.
 
-### Milestone 1 — coding-ready across projects (next implementation priority)
+### Milestone 1 / A — coding-ready across projects (complete)
+
+**Completed in steps 01–09 above and in `docs/next-steps.md`.** The original scope
+checklist below is retained as historical requirements, not unfinished work;
+its pre-A descriptions (including the old global-workspace limitation) are superseded
+by the completion evidence above.
 
 Existing capabilities to reuse: multiple chat IDs, one active job per chat,
 configurable concurrency, isolated per-chat worktrees, Changes/diffs, explicit
@@ -204,27 +535,38 @@ already exist; the next increment connects them to an intentional project workfl
   regressions first, then one announced pi-droid actual-app scenario. No test merge
   should touch the real project default branch.
 
-### Milestone 2 — one durable conversation core, Android + terminal
+### Milestone 2 / B — one durable conversation core, Android + terminal (planned)
 
-- [ ] Define the small shared interface for listing/opening conversations, sending
-  messages with idempotency keys, reading/streaming events, answering an exact
-  approval and stopping a run. Keep client-specific rendering out of execution.
-- [ ] Decide and implement canonical ownership: the core owns conversation/message
-  IDs, ordering, project bindings, run state and approval records; Android history
-  becomes a reconciled cache plus appropriate local UI state. Current Android
-  SQLite, Durable task journal and per-chat Pi CLI session files are not yet this
-  unified model. Migrate existing data with backups and comparison tests.
-- [ ] Add a minimal terminal client or explicit Pi extension integration against the
-  same core. Standard Pi CLI does not automatically attach to a Durable conversation;
-  distinguish live attachment from session import/export or handoff. Do not replace
-  the functioning real-Pi tool environment just to make the diagrams simpler.
-- [ ] Persist/reconcile event cursors, messages and approvals so reconnects do not
-  duplicate a Send, lose results or revive obsolete approval controls. Receiving
-  the same external event twice must not create two runs.
-- [ ] **Acceptance:** start a coding conversation on Android, continue it through
-  the terminal integration, disconnect that client while work runs, reopen Android
-  and see the same conversation/result exactly once. Test simultaneous sends,
-  offline reconnect, orderly restart and uncertain dispatch handling separately.
+Source-backed design: [docs/shared-conversation-design.md](docs/shared-conversation-design.md).
+Execution checklist: **B01–B11** in [docs/next-steps.md](docs/next-steps.md).
+**B01, B02 and B03a/b/c are complete in source/fixtures**: B03c **8/8** new,
+**37/37** combined focused and **111/111** full bridge tests passed;
+[bounded read evidence](docs/conversation-bounded-reads.md). B03a/b historical
+results remain above. B04–B11 remain incomplete. The authorized separate fresh
+sessions for B03b then B03c are complete; stop before B04. No B deployment, shared HTTP capability or Android migration yet.
+
+- Keep one independent, exclusively locked bridge/Durable owner and real Pi RPC
+  runner. Add canonical conversation/message projection, ordered events/cursors
+  and approval receipts in its existing journal; reuse job/request/run IDs,
+  immutable project bindings and review/worktree execution paths.
+- List/open/send/read events/answer exact approval/Stop exact run is the small
+  interface. B initially polls bounded committed events; token streaming is not
+  required. Old-client writes must feed the same projection transactionally.
+- Reconcile Android's SQLite as cache + stable outbox with additive migrations and
+  explicit non-executing historical import. Preserve Android-only history/drafts,
+  IDs, organization, pairing and saved review operation JSON. Unknown projects or
+  uncertain local sends are not silently bound, submitted or marked successful.
+- A minimal terminal HTTP client attaches to that owner, never opens Pi session
+  files or launches another harness. Stock Pi resume/import is not attachment;
+  a Pi extension and PC/web expansion can follow separately.
+- Persist cursor/application atomically, deduplicate Send and approval receipts,
+  serialize competing clients, and keep uncertain dispatched coding/review/dialog
+  actions non-replayable. Disconnect is not Stop; storage is not host survival.
+- **Acceptance:** Android → terminal continuation → terminal disconnect while work
+  runs → Android sees the same chat/run/project/worktree and result once. Prove
+  deterministic headless continuity first; simultaneous sends, offline reconnect,
+  restart and uncertainty are separate cases. Deployment/normal migration/visible
+  smoke require separate agreement at B11, not permission from this plan.
 
 ### Milestone 3 — richer personal chat, knowledge and research
 
@@ -317,10 +659,11 @@ interactive artifacts, remote offload, bounded goals and opt-in morning briefs.
 Their named Pi Pocket upstream is not this repository; do not treat it as a safe
 upstream upgrade. The source review did not run upstream code or prove its claims.
 
-For implementation, start with **Milestone 1: project-bound coding conversations**.
-This documentation update does not implement multi-project support, change the
-running bridge, grant new permissions, install packages or authorize unannounced
-phone tests. Current completed functionality/evidence follows below.
+The authorized B03 implementation sessions are complete; **stop before B04**.
+Milestone A and B01/B02/B03 are complete in source/fixtures. B source has not been
+deployed or exposed as a shared client capability; B04 requires separate approval.
+This roadmap authorizes no runtime/deployment/package changes or unannounced phone tests. Current completed
+functionality/evidence follows below.
 
 ## Android package and chat migration — completed, 2026-10-19
 
