@@ -61,7 +61,8 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
     fun showChats() { showingArchive = false; renderRows() }
     private fun renderRows() {
         rows.removeAllViews()
-        val visible = sessions.filter { it.archived == showingArchive }
+        // Preserve archive flags but never conceal newly observed remote activity.
+        val visible = sessions.filter { (it.archived && !it.active) == showingArchive }
         summary.text = if (showingArchive) "Archive · ${visible.size} saved chats" else "${visible.size} chats · ${visible.count { sectionFor(it) == ChatSection.ATTENTION }} need attention"
         archiveButton.text = if (showingArchive) "← Back to chats" else "Archive (${sessions.count { it.archived }})"
         archiveButton.contentDescription = if (showingArchive) "Back to chats" else "Open archive"
@@ -88,7 +89,7 @@ class SessionDrawer(context: Context, private val select: (String) -> Unit, newC
                     if (session.id == selected) { if (!working) setTextColor(FantasticPiMobileColors.accent); setTypeface(typeface, Typeface.BOLD) }
                 })
                 val state = when {
-                    session.archived -> "✓ Finished · archived"
+                    session.archived && !session.active -> "✓ Finished · archived"
                     session.active && requestStates[session.id]?.let(::requestAttention) == true -> requestStateLabel(requestStates.getValue(session.id))!!
                     session.needsApproval -> "◉ Your feedback needed"
                     session.status == "sending" -> "◌ Connecting / waiting for a slot"

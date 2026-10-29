@@ -12,6 +12,8 @@ import tempfile
 import time
 import urllib.request
 import urllib.error
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from threading import Thread
 from power_observer import ObservationUnavailable, SharedPowerObserver
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -118,8 +120,50 @@ def main(options):
             finally:
                 config_path.write_text(original_config)
             assert api('/health')['processId'] == owner_pid
-            assert api('/health')['protocolVersion'] == 5
+            assert api('/health')['protocolVersion'] == 6
+            assert api('/health')['conversationCore'] is True
+            assert api('/health')['eventSchemaVersion'] == 1
+            assert isinstance(api('/health')['ownerId'], str)
             assert api('/health')['projectBindings'] is True
+            # Strict protocol/capability refusal, even with the correct storage PID.
+            # The fake endpoint is only a temporary fixture health responder.
+            real_health = api('/health')
+            real_maintenance = api('/v1/maintenance')
+            fake_health = dict(real_health)
+            class HealthHandler(BaseHTTPRequestHandler):
+                def do_GET(self):
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps(real_maintenance if self.path == '/v1/maintenance' else fake_health).encode())
+                def log_message(self, *args):
+                    pass
+            health_server = HTTPServer(('127.0.0.1', 0), HealthHandler)
+            health_thread = Thread(target=health_server.serve_forever, daemon=True)
+            health_thread.start()
+            try:
+                config_path.write_text(original_config.replace('PORT=' + str(port),
+                    'PORT=' + str(health_server.server_address[1])))
+                for version in [4, 5, 6]:
+                    fake_health.clear()
+                    fake_health.update({**real_health, 'protocolVersion': version})
+                    assert json.loads(run_ok('status').stdout)['ready']
+                for patch in [
+                    {'protocolVersion': '6'}, {'protocolVersion': 7},
+                    {'conversationCore': 'true'}, {'conversationCore': False}, {'projectBindings': False},
+                    {'eventSchemaVersion': '1'}, {'eventSchemaVersion': 2},
+                    {'ownerId': None}, {'ownerId': 'not-an-owner'},
+                ]:
+                    fake_health.clear()
+                    fake_health.update({**real_health, **patch})
+                    refused = json.loads(run_ok('status').stdout)
+                    assert not refused['ready'] and refused['reason'] == 'health-unverified'
+            finally:
+                config_path.write_text(original_config)
+                health_server.shutdown()
+                health_server.server_close()
+                health_thread.join()
+            assert json.loads(run_ok('status').stdout)['ready']
             assert not api('/v1/maintenance')['admissionsPaused']
             assert workflow('start').returncode != 0, 'Duplicate launch must fail'
             # Real queued/running fake-RPC work and pending approval block stop.

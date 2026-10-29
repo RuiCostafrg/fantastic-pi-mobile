@@ -54,6 +54,40 @@ class MainActivity : Activity() {
     private var renderedPaired = false
     private var renderedStates: List<RequestState> = emptyList()
     private val observations = RequestObservations()
+    private lateinit var shared: SharedConversations
+    private val sharedWorker = Executors.newSingleThreadExecutor()
+    private var sharedRefreshing = false
+    private var sharedIdentity = ""
+    private fun configureShared() {
+        val identity = connection.identity
+        if (::shared.isInitialized) shared.invalidate()
+        sharedIdentity = identity
+        val endpoint = connection.endpoint
+        shared = SharedConversations(history, endpoint,
+            { path, body, headers -> connection.requestAt(endpoint, path, body, headers, identity) },
+            { connection.identity == identity })
+        if (visible) shared.activate()
+    }
+    private fun chatJobs(id: String): List<Job> = if (::shared.isInitialized && shared.sharedRequired())
+        runCatching { shared.jobs(id) }.getOrElse { history.jobs(id).map { it.copy(pending = "") } } else history.jobs(id)
+    private fun chatSessions(): List<ChatSession> = if (::shared.isInitialized && shared.sharedRequired())
+        runCatching { shared.sessions() }.getOrElse { history.sessions() } else history.sessions()
+    private fun currentEvidence(job: Job): Boolean = if (shared.sharedRequired()) shared.current(job)
+        else !shared.isSharedRequest(job.id) && observations.state(job.id) == RequestState.CURRENT
+    private fun displayState(job: Job): RequestState = when {
+        !shared.sharedRequired() -> observations.state(job.id)
+        shared.mode == SharedConversations.Mode.CHECKING -> RequestState.CHECKING
+        shared.current(job) -> RequestState.CURRENT
+        else -> RequestState.UNAVAILABLE
+    }
+    private fun approvalCurrent(job: Job): Boolean = if (shared.sharedRequired()) shared.canApprove(job) else currentEvidence(job)
+    private fun sharedAction(job: Job, action: (SharedConversations) -> Unit) {
+        val adapter = shared
+        sharedWorker.execute {
+            runCatching { action(adapter) }
+            handler.post { if (!isDestroyed && visible && shared === adapter) { render(); refresh() } }
+        }
+    }
     private var bindingDraft = false
     private var visible = false
     private var modalOpen = false
@@ -76,6 +110,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         history = History(this); connection = Connection(this)
+        configureShared()
         projectPicker = ProjectPicker(this, history, connection, worker, handler,
             { id -> visible && !isDestroyed && selectedId == id }, { render() },
             { open -> modalOpen = open; if (!open) maybeShowApproval() })
@@ -157,7 +192,8 @@ class MainActivity : Activity() {
         actions.addView(talk, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(8) })
         stop = actionButton("Stop", "Stop this chat") {
             val job = selectedJob() ?: return@actionButton
-            network(job.id) { connection.request("/v1/jobs/${job.id}/cancel", JSONObject()) }
+            if (shared.sharedRequired()) sharedAction(job) { it.stop(job) }
+            else if (currentEvidence(job)) network(job.id) { connection.request("/v1/jobs/${job.id}/cancel", JSONObject()) }
         }
         actions.addView(stop, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(8) })
         send = actionButton("Send") { submit() }.apply {
@@ -178,13 +214,13 @@ class MainActivity : Activity() {
         render()
     }
 
-    override fun onStart() { super.onStart(); observations.reset(); visible = true; changesInfo = null; nextChangesCheck = 0; render(); history.session(selectedId)?.let { projectPicker.refreshLabel(it) }; handler.post(poll) }
+    override fun onStart() { super.onStart(); observations.reset(); visible = true; shared.activate(); changesInfo = null; nextChangesCheck = 0; render(); history.session(selectedId)?.let { projectPicker.refreshLabel(it) }; handler.post(poll) }
     override fun onStop() {
-        saveDraft(); visible = false; observations.reset(); projectPicker.close()
+        saveDraft(); visible = false; shared.invalidate(); observations.reset(); projectPicker.close()
         approvalDialog?.dismiss(); approvalDialog = null
         handler.removeCallbacks(poll); super.onStop()
     }
-    override fun onDestroy() { approvalDialog?.dismiss(); worker.shutdown(); super.onDestroy() }
+    override fun onDestroy() { approvalDialog?.dismiss(); worker.shutdown(); sharedWorker.shutdown(); super.onDestroy() }
     override fun onSaveInstanceState(outState: Bundle) { saveDraft(); outState.putString("speechSession", speechSessionId); super.onSaveInstanceState(outState) }
     @Deprecated("Platform back API")
     override fun onBackPressed() {
@@ -192,14 +228,15 @@ class MainActivity : Activity() {
     }
     private fun saveDraft() { handler.removeCallbacks(persistDraft); history.saveDraft(selectedId, draft.text.toString()) }
     private fun hideKeyboard() { (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(draft.windowToken, 0); draft.clearFocus() }
-    private fun selectedJob() = history.activeJobs().firstOrNull { it.sessionId == selectedId }
+    private fun selectedJob() = chatJobs(selectedId).firstOrNull { it.active }
     private fun newChat() { navigation.showChats(); switchSession(history.createSession()) }
     private fun finishSession(session: ChatSession, finished: Boolean) {
-        try { history.setFinished(session.id, finished); render() }
+        try { check(chatSessions().none { it.id == session.id && it.active }) { "Remote work is active; refresh or Stop it first" }; history.setFinished(session.id, finished); render() }
         catch (error: IllegalStateException) { Toast.makeText(this, error.message, Toast.LENGTH_LONG).show() }
     }
     private fun archiveSession(session: ChatSession, archived: Boolean) {
         try {
+            check(chatSessions().none { it.id == session.id && it.active }) { "Remote work is active; refresh or Stop it first" }
             history.setArchived(session.id, archived)
             if (archived && selectedId == session.id) {
                 switchSession(history.sessions().firstOrNull { !it.archived }?.id ?: history.createSession())
@@ -235,11 +272,11 @@ class MainActivity : Activity() {
             .setView(ScrollView(this).apply { addView(details) }).setPositiveButton("Close", null).create()
         dialog.setOnDismissListener { modalOpen = false; maybeShowApproval() }
         dialog.show()
-        val job = history.jobs(session.id).lastOrNull()
+        val job = chatJobs(session.id).lastOrNull()
         if (job == null) { details.text = "A dedicated worktree is created from the default branch when you send the first message."; return }
         worker.execute {
             val message = try {
-                val response = connection.request("/v1/jobs/${job.id}")
+                val response = shared.requestScoped("/v1/jobs/${job.id}")
                 ProjectRequests.validateJob(job, history.session(job.sessionId)?.projectId, response)
                 val workspace = response.optJSONObject("workspace")
                 if (workspace == null) "No worktree recorded yet. New requests prepare a dedicated worktree before Pi runs."
@@ -264,12 +301,13 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
-        val sessions = history.sessions()
+        val sessions = chatSessions()
         val session = sessions.firstOrNull { it.id == selectedId } ?: return
-        val jobs = history.jobs(selectedId)
+        val jobs = chatJobs(selectedId)
         val current = jobs.firstOrNull { it.active }
         title.text = session.title
-        project.text = projectPicker.label(session)
+        project.isEnabled = !shared.readOnly(selectedId)
+        project.text = if (shared.readOnly(selectedId)) "Historical chat · unproved project · read-only" else projectPicker.label(session)
         changes.visibility = if (reviewAvailable()) View.VISIBLE else View.GONE
         val changedCount = reviewFileCount(changesInfo)
         changes.text = if (changedCount > 0) "Review $changedCount changed ${if (changedCount == 1) "file" else "files"}" else "View repository action"
@@ -282,22 +320,25 @@ class MainActivity : Activity() {
         talk.alpha = if (talk.isEnabled) 1f else 0.35f
         subtitle.text = if (others > 0) "$others other chats with pending requests" else "A space for your next idea"
         send.text = if (connection.paired) "Send" else "Pair bridge"
-        send.isEnabled = !session.archived && (!connection.paired || current == null)
+        send.isEnabled = !session.archived && (!connection.paired || current == null &&
+            (!shared.sharedRequired() || shared.canSend(selectedId)))
         stop.visibility = if (current != null) View.VISIBLE else View.GONE
-        stop.isEnabled = connection.paired && current != null && current.status != "sending"
+        stop.isEnabled = connection.paired && current != null && current.status != "sending" && currentEvidence(current)
         send.alpha = if (send.isEnabled) 1f else 0.4f; stop.alpha = if (stop.isEnabled) 1f else 0.35f
         status.text = when {
+            current != null && shared.sharedRequired() -> if (shared.live(selectedId)) "Remote/local work active · ${shared.message}" else shared.message
             session.archived -> "Archived · history preserved. Restore this chat to continue."
             session.finished -> "✓ Finished by you · archive from ⋮, or send a message to reopen."
             !connection.paired -> "Bridge not paired. Tap Pair bridge; saved requests resume after pairing."
             current != null -> requestSummary(current, observations.state(current.id))
-            jobs.lastOrNull()?.status == "failed" -> "Request failed. Inspect the result below before retrying."
-            jobs.lastOrNull()?.status == "interrupted" -> "Interrupted · inspect changes before a new request. Work was not replayed."
+            session.status == "failed" -> "Request failed. Inspect the result below before retrying."
+            session.status == "interrupted" -> "Interrupted · inspect changes before a new request. Work was not replayed."
+            shared.sharedRequired() -> shared.message
             else -> "Ready when you are"
         }
-        val approvalCurrent = current != null && observations.state(current.id) == RequestState.CURRENT && connection.paired
+        val approvalCurrent = current != null && approvalCurrent(current) && connection.paired
         review.visibility = if (approvalCurrent && current?.pending?.isNotEmpty() == true) View.VISIBLE else View.GONE
-        val states = jobs.map { if (it.active) observations.state(it.id) else RequestState.CURRENT }
+        val states = jobs.map { if (it.active) displayState(it) else RequestState.CURRENT }
         if (renderedSession != selectedId || renderedJobs != jobs || renderedPaired != connection.paired || renderedStates != states) {
             val atBottom = renderedSession != selectedId || scroll.getChildAt(0).height - scroll.height - scroll.scrollY < dp(100)
             val previousY = scroll.scrollY
@@ -312,8 +353,9 @@ class MainActivity : Activity() {
                     background = rounded(FantasticPiMobileColors.card, dp(18).toFloat())
                 }, LinearLayout.LayoutParams(-1, -2).apply { leftMargin = dp(26); topMargin = dp(16) })
                 val unpaired = job.active && !connection.paired
-                val observed = observations.state(job.id)
-                val state = if (unpaired) "WAITING FOR PAIRING" else requestLabel(job, observed)
+                val observed = displayState(job)
+                val historical = job.status == "historical" || shared.sharedRequired() && !shared.isSharedRequest(job.id) && job.approvalOccurrenceId == null && job.progress.startsWith("Historical/unresolved")
+                val state = if (historical) "HISTORICAL / UNRESOLVED · READ ONLY" else if (unpaired) "WAITING FOR PAIRING" else requestLabel(job, observed)
                 val answer = if (unpaired) "Pair your Termux bridge to continue." else job.answer.ifBlank {
                     if (job.active) requestSummary(job, observed) else "No answer recorded."
                 }
@@ -325,7 +367,9 @@ class MainActivity : Activity() {
             renderedSession = selectedId; renderedJobs = jobs; renderedPaired = connection.paired; renderedStates = states
             scroll.post { if (atBottom) scroll.fullScroll(View.FOCUS_DOWN) else scroll.scrollTo(0, previousY) }
         }
-        val sessionStates = history.activeJobs().associate { it.sessionId to observations.state(it.id) }
+        val sessionStates = sessions.filter { it.active }.associate { it.id to
+            if (shared.sharedRequired()) { if (shared.live(it.id)) RequestState.CURRENT else RequestState.UNAVAILABLE }
+            else observations.state(chatJobs(it.id).last { job -> job.active }.id) }
         navigation.render(sessions, selectedId, sessionStates)
         if (!approvalCurrent || current?.pending.isNullOrEmpty() || approvalDialogKey != current?.takeIf { it.pending.isNotEmpty() }?.let { approvalKey(it) }) {
             approvalDialog?.dismiss(); approvalDialog = null
@@ -338,7 +382,7 @@ class MainActivity : Activity() {
         getSharedPreferences("review-requests", MODE_PRIVATE).contains("pending-$selectedId"))
 
     private fun refreshChanges(force: Boolean = false) {
-        if (!visible || !connection.paired || history.jobs(selectedId).isEmpty()) return
+        if (!visible || !connection.paired || chatJobs(selectedId).isEmpty()) return
         val now = android.os.SystemClock.elapsedRealtime()
         if (!force && now < nextChangesCheck) return
         val id = selectedId; val endpoint = connection.endpoint; val epoch = observations.epoch
@@ -346,7 +390,7 @@ class MainActivity : Activity() {
         nextChangesCheck = now + 4500
         worker.execute {
             val result = runCatching {
-                connection.request("/v1/sessions/$id/changes?summary=1").also {
+                shared.requestScoped("/v1/sessions/$id/changes?summary=1").also {
                     ProjectRequests.validateProject(history.session(id)?.projectId, it)
                 }
             }
@@ -363,9 +407,22 @@ class MainActivity : Activity() {
 
     /** Poll every active chat, not just the visible one. Background completions never switch selection. */
     private fun refresh() {
-        refreshChanges()
         if (!connection.paired) return
-        for (job in history.activeJobs()) {
+        if (sharedIdentity != connection.identity) configureShared()
+        if (!sharedRefreshing) {
+            sharedRefreshing = true
+            val adapter = shared; val epoch = observations.epoch
+            sharedWorker.execute {
+                adapter.refresh()
+                handler.post {
+                    sharedRefreshing = false
+                    if (!isDestroyed && visible && shared === adapter && observations.epoch == epoch) render()
+                }
+            }
+        }
+        refreshChanges()
+        if (shared.sharedRequired()) return
+        for (job in history.activeJobs().filter { !shared.isSharedRequest(it.id) }) {
             if (!polling.add(job.id)) continue
             val epoch = observations.epoch
             val endpoint = connection.endpoint
@@ -374,7 +431,7 @@ class MainActivity : Activity() {
                 var failure: Exception? = null
                 try {
                     fun checkOwner() {
-                        if (epoch != observations.epoch || endpoint != connection.endpoint) throw ProjectIdentityException("Bridge connection changed; request preserved")
+                        if (epoch != observations.epoch || endpoint != connection.endpoint || shared.sharedRequired()) throw ProjectIdentityException("Bridge mode/connection changed; request preserved")
                     }
                     result = ProjectRequests(beforeLegacySubmit = { project ->
                         checkOwner(); history.resolveRequestProject(job.id, project)
@@ -385,7 +442,7 @@ class MainActivity : Activity() {
                 handler.post {
                     polling.remove(job.id)
                     // Responses from before backgrounding or re-pairing are not live evidence.
-                    if (isDestroyed || !visible || epoch != observations.epoch || endpoint != connection.endpoint) return@post
+                    if (isDestroyed || !visible || epoch != observations.epoch || endpoint != connection.endpoint || shared.sharedRequired()) return@post
                     val received = result
                     val error = failure
                     if (received != null) {
@@ -412,7 +469,10 @@ class MainActivity : Activity() {
             draft.error = "Choose or resolve this chat's project before sending"; projectPicker.show(selectedId); return
         }
         saveDraft()
-        history.add(UUID.randomUUID().toString(), selectedId, text)
+        try {
+            if (shared.sharedRequired()) shared.prepareSend(selectedId, text)
+            else history.add(UUID.randomUUID().toString(), selectedId, text)
+        } catch (error: Exception) { draft.error = error.message ?: "Refresh this chat before Send"; return }
         bindingDraft = true; draft.setText(""); bindingDraft = false
         hideKeyboard(); render(); refresh()
     }
@@ -421,7 +481,10 @@ class MainActivity : Activity() {
         val endpoint = connection.endpoint
         worker.execute {
             var failed = false
-            try { action() } catch (_: Exception) { failed = true }
+            try {
+                if (epoch != observations.epoch || endpoint != connection.endpoint || shared.sharedRequired()) throw ProjectIdentityException("Bridge mode changed; action not sent")
+                action()
+            } catch (_: Exception) { failed = true }
             handler.post {
                 if (!isDestroyed && visible && epoch == observations.epoch && endpoint == connection.endpoint) {
                     if (jobId != null) observations.record(jobId, epoch, if (failed) RequestState.UNAVAILABLE else RequestState.CHECKING)
@@ -430,23 +493,24 @@ class MainActivity : Activity() {
             }
         }
     }
-    private fun approvalKey(job: Job): String = job.id + ":" + JSONObject(job.pending).optString("id")
+    private fun approvalKey(job: Job): String = job.id + ":" + (job.approvalOccurrenceId ?: JSONObject(job.pending).optString("id"))
     private fun maybeShowApproval() {
         if (!visible || modalOpen || drawer.isDrawerVisible(GravityCompat.START) || approvalDialog?.isShowing == true) return
         val job = selectedJob() ?: return
-        if (!connection.paired || observations.state(job.id) != RequestState.CURRENT) return
+        if (!connection.paired || !approvalCurrent(job)) return
         if (job.pending.isNotEmpty() && approvalKey(job) !in deferredApprovals) showApproval(job)
     }
     private fun showApproval(job: Job) {
-        if (!visible || job.sessionId != selectedId || job.pending.isEmpty() || observations.state(job.id) != RequestState.CURRENT) return
+        if (!visible || job.sessionId != selectedId || job.pending.isEmpty() || !approvalCurrent(job)) return
         val pending = JSONObject(job.pending)
         val key = approvalKey(job)
         val builder = AlertDialog.Builder(this).setTitle("${history.session(job.sessionId)?.title}: ${pending.optString("title", "Pi extension")}")
         fun reply(json: JSONObject) {
             val current = selectedJob() ?: return
-            if (!visible || observations.state(job.id) != RequestState.CURRENT || current.pending.isEmpty() || approvalKey(current) != key) return
+            if (!visible || !approvalCurrent(job) || current.pending.isEmpty() || approvalKey(current) != key) return
             deferredApprovals.add(key)
-            network(job.id) { connection.request("/v1/jobs/${job.id}/ui", json.put("id", pending.getString("id"))) }
+            if (shared.sharedRequired()) sharedAction(job) { it.answer(job, json) }
+            else network(job.id) { connection.request("/v1/jobs/${job.id}/ui", json.put("id", pending.getString("id"))) }
         }
         builder.setOnCancelListener { deferredApprovals.add(key) }
         builder.setNeutralButton("Later") { _, _ -> deferredApprovals.add(key) }
@@ -482,7 +546,7 @@ class MainActivity : Activity() {
             .setPositiveButton("Save", null).setNeutralButton("Test", null).setNegativeButton("Cancel", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                try { projectPicker.close(); connection.save(url.text.toString(), token.text.toString()); observations.reset(); Log.i("FantasticPiMobile", "pairing saved"); dialog.dismiss(); render(); refresh() }
+                try { projectPicker.close(); shared.invalidate(); connection.save(url.text.toString(), token.text.toString()); configureShared(); observations.reset(); Log.i("FantasticPiMobile", "pairing saved"); dialog.dismiss(); render(); refresh() }
                 catch (error: Exception) { token.error = error.message }
             }
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
