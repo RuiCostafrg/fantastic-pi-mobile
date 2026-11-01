@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "exports": "./index.js",
-  "scripts": { "test": "node --test test/*.test.js" },
-  "engines": { "node": ">=22.19.0" }
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "lint:oxc": "npx --yes oxlint@latest .",
+    "format": "npx --yes oxfmt@latest .",
+    "format:check": "npx --yes oxfmt@latest --check ."
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
 }
