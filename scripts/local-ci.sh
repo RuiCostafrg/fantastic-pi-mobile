@@ -70,6 +70,8 @@ stage_android() {
 # status posting use repo-relative paths (cubic P3).
 cd "$(git rev-parse --show-toplevel)" || _fail "not inside the repository"
 
+signoff_failed=0
+
 # Validate all selected stage names before running anything.
 for s in "${SELECTED[@]}"; do
   declare -F "stage_$s" >/dev/null || _fail "unknown stage '$s' (stages: ${AVAILABLE_STAGES[*]})"
@@ -100,9 +102,14 @@ for s in "${SELECTED[@]}"; do
   _ok "$s passed"
   if [ "$NO_SIGNOFF" = 0 ]; then
     gh signoff "$s" >/dev/null 2>&1 \
-      || printf '⚠ could not post signoff status for %s — is HEAD pushed? gh authorized?\n' "$s" >&2
+      || { printf '⚠ could not post signoff status for %s — is HEAD pushed? gh authorized?\n' "$s" >&2; signoff_failed=1; }
   fi
 done
+
+# A missing required status is as bad as a failing stage (CodeRabbit Minor).
+if [ "$signoff_failed" -ne 0 ]; then
+  _fail "one or more signoff statuses could not be posted"
+fi
 
 if [ "$NO_SIGNOFF" = 1 ]; then
   _log "all done — no signoff statuses posted (was --no-signoff)."
