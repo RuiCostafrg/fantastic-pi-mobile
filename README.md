@@ -1,3 +1,5 @@
+![fantastic-pi-mobile banner](assets/readme-banner.svg)
+
 # Fantastic Pi Mobile ✦
 
 A voice-first personal assistant for Android, written in **Kotlin**, with local **SQLite** history and a **Pi Durable** bridge.
