@@ -88,6 +88,9 @@ fi
 
 for s in "${SELECTED[@]}"; do
   _log "stage: $s"
+  # Bind every status to the exact commit the stage tests (CodeRabbit Major):
+  # a commit/push landing mid-stage can no longer be green-lit by mistake.
+  head_sha="$(git rev-parse HEAD)"
   # Run the stage in a subshell with errexit, OUTSIDE any if-condition context:
   # inside `if ! (...)` bash suppresses errexit, so a failing command mid-stage
   # could be masked and the stage wrongly reported green (bot review P0).
@@ -96,12 +99,12 @@ for s in "${SELECTED[@]}"; do
   rc=$?
   set -e
   if [ "$rc" -ne 0 ]; then
-    [ "$NO_SIGNOFF" = 0 ] && gh signoff fail "$s" --description "$s failed locally" >/dev/null 2>&1 || true
+    [ "$NO_SIGNOFF" = 0 ] && gh signoff fail --commit "$head_sha" "$s" --description "$s failed locally" >/dev/null 2>&1 || true
     _fail "stage '$s' failed"
   fi
   _ok "$s passed"
   if [ "$NO_SIGNOFF" = 0 ]; then
-    gh signoff "$s" >/dev/null 2>&1 \
+    gh signoff --commit "$head_sha" "$s" >/dev/null 2>&1 \
       || { printf '⚠ could not post signoff status for %s — is HEAD pushed? gh authorized?\n' "$s" >&2; signoff_failed=1; }
   fi
 done
