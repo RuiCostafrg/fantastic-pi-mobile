@@ -100,7 +100,8 @@ async function status() {
   catch { return refuse('unverified', 'storage-unreadable'); }
   try { result.health = await api('/health'); }
   catch (error) { return refuse('unavailable', error.status === 401 ? 'health-authentication-failed' : 'health-unavailable'); }
-  if (result.health?.ok !== true || ![4, 5].includes(result.health.protocolVersion)) return refuse('unverified', 'health-unverified');
+  if (result.health?.ok !== true || ![4, 5, 6].includes(result.health.protocolVersion)) return refuse('unverified', 'health-unverified');
+  if (result.health.protocolVersion === 6 && (result.health.conversationCore !== true || result.health.projectBindings !== true || result.health.eventSchemaVersion !== 1 || typeof result.health.ownerId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(result.health.ownerId))) return refuse('unverified', 'health-unverified');
   if (result.health.processId === undefined) return refuse('unverified', 'health-owner-unverified');
   if (result.health.processId !== result.owner.pid) return refuse('unverified', 'http-owner-mismatch');
   try { result.maintenance = await api('/v1/maintenance'); }

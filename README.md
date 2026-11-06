@@ -289,6 +289,11 @@ These scripts require Python and authorized ADB; `ANDROID_SERIAL` selects a devi
 ### API
 
 Every route requires `Authorization: Bearer <token>`.
+B05 adds the **source/fixture-only, not deployed** protocol-6 shared interface:
+[conversation API, gates and evidence](docs/conversation-api.md). Old routes remain;
+B06 adds a **source/synthetic-fixture-only** non-executing history import/read lane:
+[history import, receipts and limits](docs/conversation-history-import.md).
+Android export/cache integration and terminal client rollout remain later steps.
 The protocol-5 project contract and capability requirements are in
 [docs/project-api.md](docs/project-api.md). Project discovery/selection is implemented
 in the backend source. Android project/request persistence and capability checks
@@ -301,7 +306,14 @@ app project-state migration or installation of this increment has been performed
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/health` | Authenticated liveness, `protocolVersion: 5`, `projectBindings: true`, `processId`, `worktreeIsolation: true`, `changesReview: true`, `maxConcurrent` |
+| GET | `/health` | Authenticated liveness, source protocol 6 with `conversationCore: true`, `eventSchemaVersion: 1`, stable `ownerId`; `projectBindings: true`, `processId`, `worktreeIsolation: true`, `changesReview: true`, `maxConcurrent` |
+| GET / POST | `/v1/conversations` | Gated bounded catalogue / idempotent explicit-project empty chat creation, no execution |
+| GET | `/v1/conversations/:id` | Consistent bounded snapshot and high-water/feed cursor |
+| GET | `/v1/conversations/:id/events` | Bounded ordered committed events with scoped cursor/page tokens |
+| POST | `/v1/conversations/:id/approvals/:approvalId/response` | Exact occurrence + response-ID durable receipt, no uncertain delivery replay |
+| POST | `/v1/conversations/:id/history/imports` | Gated bounded historical evidence manifest; immutable import/conflict receipt; never execution |
+| GET | `/v1/conversations/:id/history/imports/:importId` | Exact saved manifest and acknowledgement recovery |
+| GET | `/v1/conversations/:id/history` | Bounded pinned historical/unresolved evidence pages, no actionable approvals |
 | GET / POST | `/v1/maintenance` | Global model/review admission state and idle counts; POST `{paused: boolean}` pauses/resumes new IDs without cancelling work or blocking exact-ID recovery |
 | GET / POST | `/v1/projects` | List trusted projects; deliberately register `{source, name, branchPolicy, confirmRegistration: true}` without executing work |
 | GET | `/v1/sessions/:sessionId/project` | Read immutable binding, or 404 if unbound; no checkout creation |

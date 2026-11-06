@@ -50,10 +50,13 @@ class LiveStatusUiTest {
                             val requestLine = reader.readLine().orEmpty()
                             while (!reader.readLine().isNullOrEmpty()) { /* GET only; no content logged. */ }
                             val jobRequest = requestLine.contains("/v1/jobs/saved-approval ")
-                            if (jobRequest) gate.await(10, TimeUnit.SECONDS)
+                            // B08 preflights health before legacy job polling. Hold that proof too,
+                            // so the initial CHECKING assertion is deterministic rather than a race.
+                            if (jobRequest || requestLine.contains(" /health ")) gate.await(10, TimeUnit.SECONDS)
                             val code = if (available.get()) 200 else 503
                             val body = when {
                                 !available.get() -> "{\"error\":\"Fixture offline\"}"
+                                requestLine.contains(" /health ") -> "{\"protocolVersion\":4,\"worktreeIsolation\":true}"
                                 !jobRequest -> "{\"hasChanges\":false}"
                                 interrupted.get() -> "{\"id\":\"saved-approval\",\"sessionId\":\"pocket\",\"status\":\"interrupted\",\"answer\":\"Not replayed\"}"
                                 else -> "{\"id\":\"saved-approval\",\"sessionId\":\"pocket\",\"status\":\"running\",\"pending\":{\"id\":\"approval\",\"method\":\"confirm\",\"title\":\"Fixture approval\"}}"

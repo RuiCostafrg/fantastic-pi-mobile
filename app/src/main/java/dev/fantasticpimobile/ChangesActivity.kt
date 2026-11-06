@@ -22,6 +22,9 @@ import java.util.concurrent.Executors
 /** Native, session-scoped review. No mutation is submitted without explicit confirmation. */
 class ChangesActivity : Activity() {
     private lateinit var connection: Connection
+    private lateinit var shared: SharedConversations
+    private lateinit var sharedHistory: History
+    private var connectionIdentity = ""
     private lateinit var sessionId: String
     private lateinit var summary: TextView
     private lateinit var mergeHint: TextView
@@ -64,6 +67,12 @@ class ChangesActivity : Activity() {
         sessionId = intent.getStringExtra("sessionId").orEmpty()
         if (!Regex("[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}").matches(sessionId)) { finish(); return }
         connection = Connection(this)
+        connectionIdentity = connection.identity
+        val endpoint = connection.endpoint
+        sharedHistory = History(this)
+        shared = SharedConversations(sharedHistory, endpoint,
+            { path, body, headers -> connection.requestAt(endpoint, path, body, headers, connectionIdentity) },
+            { connection.identity == connectionIdentity })
         pending = preferences.getString("pending-$sessionId", null)?.let { JSONObject(it) }
         window.statusBarColor = FantasticPiMobileColors.background; window.navigationBarColor = FantasticPiMobileColors.background
         val root = LinearLayout(this).apply {
@@ -108,8 +117,8 @@ class ChangesActivity : Activity() {
         commitHint = textLabel("Commits whole files to this chat’s branch. Nothing pushed.", 11f, true); root.addView(commitHint)
         setContentView(root); updateButtons()
     }
-    override fun onStart() { super.onStart(); requestEpoch++; loading = false; visible = true; if (::connection.isInitialized) { refresh(); handler.post(poll) } }
-    override fun onStop() { requestEpoch++; visible = false; handler.removeCallbacks(poll); super.onStop() }
+    override fun onStart() { super.onStart(); requestEpoch++; loading = false; visible = true; if (::connection.isInitialized) { shared.activate(); refresh(); handler.post(poll) } }
+    override fun onStop() { requestEpoch++; visible = false; if (::shared.isInitialized) shared.invalidate(); handler.removeCallbacks(poll); super.onStop() }
     override fun onDestroy() { reader?.dismiss(); worker.shutdown(); super.onDestroy() }
     private fun active(status: String) = status in listOf("queued", "running")
     private fun archived() = History(this).use { it.session(sessionId)?.archived ?: true }
@@ -124,16 +133,16 @@ class ChangesActivity : Activity() {
             val result = runCatching {
                 if (waiting != null) {
                     try {
-                        val operation = connection.request("$route/actions/${waiting.getString("operationId")}")
+                        val operation = shared.requestScoped("$route/actions/${waiting.getString("operationId")}")
                         ProjectRequests.validateOperation(sessionId, waiting.getString("operationId"), ProjectRequests.projectId(waiting) ?: expected, operation)
                         resolved = true
                     }
                     catch (error: BridgeException) { if (error.code != 404) throw error }
                 }
-                connection.request("$route/changes").also { ProjectRequests.validateReview(sessionId, expected, it) }
+                shared.requestScoped("$route/changes").also { ProjectRequests.validateReview(sessionId, expected, it) }
             }
             handler.post {
-                if (isDestroyed || !visible || epoch != requestEpoch || endpoint != connection.endpoint) return@post
+                if (isDestroyed || !visible || epoch != requestEpoch || endpoint != connection.endpoint || connection.identity != connectionIdentity) return@post
                 loading = false
                 result.mapCatching { value ->
                     History(this).use { history -> ProjectRequests.projectId(value)?.let { history.confirmProject(sessionId, it) } }
@@ -221,8 +230,8 @@ class ChangesActivity : Activity() {
         val revision = snapshot?.getString("revision") ?: return
         val expected = projectId(); val epoch = requestEpoch; val endpoint = connection.endpoint
         worker.execute {
-            val result = runCatching { connection.request("$route/diff?scope=$scope&revision=$revision&path=${URLEncoder.encode(path, "UTF-8")}").also { ProjectRequests.validateProject(expected, it) } }
-            handler.post { if (!isDestroyed && visible && epoch == requestEpoch && endpoint == connection.endpoint) result.onSuccess { showText(path, it.getString("text") + if (it.optBoolean("truncated")) "\n\n[Preview truncated; inspect the full file before committing.]" else "", true) }.onFailure { toast(it.message ?: "Diff unavailable; refresh") } }
+            val result = runCatching { shared.requestScoped("$route/diff?scope=$scope&revision=$revision&path=${URLEncoder.encode(path, "UTF-8")}").also { ProjectRequests.validateProject(expected, it) } }
+            handler.post { if (!isDestroyed && visible && epoch == requestEpoch && endpoint == connection.endpoint && connection.identity == connectionIdentity) result.onSuccess { showText(path, it.getString("text") + if (it.optBoolean("truncated")) "\n\n[Preview truncated; inspect the full file before committing.]" else "", true) }.onFailure { toast(it.message ?: "Diff unavailable; refresh") } }
         }
     }
     private fun showRepositoryDetails() {
@@ -305,16 +314,16 @@ class ChangesActivity : Activity() {
         worker.execute {
             val result = runCatching {
                 fun checkOwner() {
-                    if (epoch != requestEpoch || endpoint != connection.endpoint) throw ProjectIdentityException("Bridge connection changed; operation preserved")
+                    if (epoch != requestEpoch || endpoint != connection.endpoint || connection.identity != connectionIdentity) throw ProjectIdentityException("Bridge connection changed; operation preserved")
                 }
                 ProjectRequests(beforeLegacySubmit = { project ->
                     checkOwner(); History(this).use { it.confirmProject(sessionId, project) }
                 }, request = { path, payload ->
-                    checkOwner(); connection.requestAt(endpoint, path, payload)
+                    checkOwner(); shared.requestScoped(path, payload)
                 }).sendReview(sessionId, body, expected)
             }
             handler.post {
-                if (isDestroyed || !visible || epoch != requestEpoch || endpoint != connection.endpoint) return@post
+                if (isDestroyed || !visible || epoch != requestEpoch || endpoint != connection.endpoint || connection.identity != connectionIdentity) return@post
                 loading = false
                 result.onSuccess { clearPending(); refresh() }.onFailure {
                     blockedPending = it is ProjectIdentityException || (it is BridgeException && it.code in listOf(404, 426))
@@ -329,8 +338,9 @@ class ChangesActivity : Activity() {
     private fun cancelTests() {
         val id = snapshot?.optJSONObject("operation")?.optString("id") ?: return
         worker.execute {
-            val result = runCatching { connection.request("$route/actions/$id/cancel", JSONObject()) }
-            handler.post { if (!isDestroyed) { result.onFailure { toast(it.message ?: "Could not stop test") }; refresh() } }
+            val epoch = requestEpoch
+            val result = runCatching { shared.requestScoped("$route/actions/$id/cancel", JSONObject()) }
+            handler.post { if (!isDestroyed && visible && epoch == requestEpoch && connection.identity == connectionIdentity) { result.onFailure { toast(it.message ?: "Could not stop test") }; refresh() } }
         }
     }
     private fun toast(text: String) { Toast.makeText(this, text, Toast.LENGTH_LONG).show() }
