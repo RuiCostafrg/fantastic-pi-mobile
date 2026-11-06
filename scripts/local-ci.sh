@@ -66,9 +66,10 @@ stage_android() {
 
 # ── runner ────────────────────────────────────────────────────────────────────
 
-# Run from the repo root regardless of the invocation directory — stages and
-# status posting use repo-relative paths (cubic P3).
-cd "$(git rev-parse --show-toplevel)" || _fail "not inside the repository"
+# Anchor to the repository that owns this script, not the caller's working
+# directory — stages and status posting must use this repo's paths and HEAD,
+# even when invoked from another checkout (cubic P3, CodeRabbit).
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." || _fail "cannot find repository root"
 
 signoff_failed=0
 
