@@ -8,7 +8,10 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "lint:oxc": "npx --yes oxlint@latest .",
+    "format": "npx --yes oxfmt@latest .",
+    "format:check": "npx --yes oxfmt@latest --check ."
   },
   "dependencies": {
     "@earendil-works/chord": "1.0.4",
