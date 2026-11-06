@@ -72,6 +72,11 @@ for s in "${SELECTED[@]}"; do
 done
 
 if git status --porcelain | grep -q .; then
+  # gh-signoff refuses to attest a dirty tree, so fail fast BEFORE the long
+  # stages instead of finishing a full run with nothing posted.
+  if [ "$NO_SIGNOFF" = 0 ]; then
+    _fail "working tree has uncommitted changes — commit or stash them, or pass --no-signoff"
+  fi
   _log "warning: working tree has uncommitted changes — results may not match HEAD"
 fi
 
