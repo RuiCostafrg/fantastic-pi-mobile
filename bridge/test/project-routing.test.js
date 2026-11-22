@@ -40,11 +40,12 @@ async function job(store, id, status = 'done') {
 }
 async function action(store, sessionId, id, input, status = 'done') {
   await store.reviewAction(sessionId, { operationId: id, revision: (await store.changes(sessionId)).revision, ...input });
-  for (let i = 0; i < 600; i++) {
+  const deadline = Date.now() + 60_000;
+  do {
     const current = await store.getReview(sessionId, id);
     if (!['queued', 'running'].includes(current.status)) { assert.equal(current.status, status, current.result?.message); return current; }
     await delay();
-  }
+  } while (Date.now() < deadline);
   throw new Error('Action timed out: ' + id);
 }
 

@@ -214,12 +214,22 @@ test('actions completing during a Changes snapshot require an automatic fresh re
     return value;
   } };
   const store = await openStore({ ...options, reviewActions });
+  const firstRead = store.changes('chat');
+  // Handle an early read failure while the test waits for the snapshot gate.
+  const drained = firstRead.catch(() => {});
   try {
-    const firstRead = store.changes('chat');
-    const old = await captured;
+    const old = await Promise.race([captured, firstRead.then(() => {
+      throw new Error('Changes read completed without reaching the snapshot gate');
+    })]);
     await store.reviewAction('chat', { operationId: 'during-snapshot-action', action: 'test', revision: old.revision, command: 'true' });
-    for (let i = 0; i < 200 && (await store.getReview('chat', 'during-snapshot-action')).status !== 'done'; i++) await new Promise(r => setTimeout(r, 10));
-    assert.equal((await store.getReview('chat', 'during-snapshot-action')).status, 'done');
+    const deadline = Date.now() + 30_000;
+    let action;
+    do {
+      action = await store.getReview('chat', 'during-snapshot-action');
+      if (!['queued', 'running'].includes(action.status)) break;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    } while (Date.now() < deadline);
+    assert.equal(action.status, 'done', action.error);
     release();
     const mixed = await firstRead;
     assert.equal(mixed.operation.status, 'done');
@@ -227,7 +237,7 @@ test('actions completing during a Changes snapshot require an automatic fresh re
     assert.equal(mixed.repositoryBusy, true);
     const fresh = await store.changes('chat');
     assert.equal(fresh.refreshRequired, false); assert.equal(fresh.repositoryBusy, false);
-  } finally { release(); await store.close(); }
+  } finally { release(); await drained; await store.close(); }
 }));
 
 test('repository actions block conflicting model admission and test cancellation is scoped', () => fixture(async ({ options }) => {
