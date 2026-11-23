@@ -43,9 +43,14 @@ class ProjectPicker(
     private fun remember(endpoint: String, projects: List<CodingProject>) {
         cacheEndpoint = endpoint; cache.clear(); projects.forEach { cache[it.id] = it }
     }
-    private fun catalog(endpoint: String, valid: () -> Boolean) = ProjectCatalog { path, body ->
-        if (!valid() || endpoint != connection.endpoint) throw ProjectIdentityException("Chat or bridge changed; project not applied")
-        connection.requestAt(endpoint, path, body)
+    private fun catalog(endpoint: String, valid: () -> Boolean): ProjectCatalog {
+        val identity = connection.identity
+        return ProjectCatalog { path, body ->
+            if (!valid() || endpoint != connection.endpoint || identity != connection.identity) throw ProjectIdentityException("Chat or bridge changed; project not applied")
+            connection.requestAt(endpoint, path, body, expectedIdentity = identity).also {
+                if (!valid() || identity != connection.identity) throw ProjectIdentityException("Pairing changed; project not applied")
+            }
+        }
     }
     fun show(sessionId: String) {
         close()

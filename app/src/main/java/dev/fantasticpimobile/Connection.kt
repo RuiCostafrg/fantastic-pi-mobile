@@ -23,6 +23,8 @@ class Connection(context: Context) {
     val paired: Boolean get() = prefs.contains("token") && prefs.contains("iv")
     private var lastOutcome: String? = null
     val endpoint: String get() = prefs.getString("endpoint", "http://127.0.0.1:8787")!!
+    // Includes encrypted credential identity, so same-URL re-pairing invalidates in-flight proof.
+    internal val identity: String get() = ConversationCachePolicy.digest(endpoint + ":" + prefs.getString("iv", "") + ":" + prefs.getString("token", ""))
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey("fantastic-pi-mobile-token", null) as? SecretKey)?.let { return it }
@@ -50,10 +52,12 @@ class Connection(context: Context) {
     }
     fun request(path: String, body: JSONObject? = null): JSONObject = requestAt(endpoint, path, body)
     /** A health/binding proof must never be followed by POST to a newly paired endpoint. */
-    fun requestAt(expectedEndpoint: String, path: String, body: JSONObject? = null): JSONObject {
+    fun requestAt(expectedEndpoint: String, path: String, body: JSONObject? = null,
+        headers: Map<String, String> = emptyMap(), expectedIdentity: String? = null): JSONObject {
+        if (expectedIdentity != null && identity != expectedIdentity) throw ProjectIdentityException("Pairing changed; request preserved")
         if (endpoint != expectedEndpoint) throw ProjectIdentityException("Bridge connection changed; request preserved")
         val authorization = token()
-        if (endpoint != expectedEndpoint) throw ProjectIdentityException("Bridge connection changed; request preserved")
+        if (endpoint != expectedEndpoint || expectedIdentity != null && identity != expectedIdentity) throw ProjectIdentityException("Bridge connection changed; request preserved")
         val started = SystemClock.elapsedRealtime()
         val method = if (body == null) "GET" else "POST"
         val route = when { path == "/health" -> "health"; path == "/v1/jobs" -> "submit"; path.startsWith("/v1/sessions/") -> "review"; else -> "job" }
@@ -62,10 +66,18 @@ class Connection(context: Context) {
             conn.connectTimeout = 5000; conn.readTimeout = 15000
             conn.instanceFollowRedirects = false
             conn.setRequestProperty("Authorization", "Bearer " + authorization)
+            headers.forEach { (name, value) ->
+                require(name in setOf("X-Conversation-Schema", "X-Conversation-Owner", "X-History-Schema"))
+                conn.setRequestProperty(name, value)
+            }
             if (body != null) {
+                val bytes = body.toString().toByteArray(Charsets.UTF_8)
                 conn.requestMethod = "POST"; conn.doOutput = true
+                // Streaming mode prevents HttpURLConnection silently replaying a buffered POST
+                // after a lost response. Recovery belongs to the persisted exact-ID policy.
+                conn.setFixedLengthStreamingMode(bytes.size)
                 conn.setRequestProperty("Content-Type", "application/json")
-                conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                conn.outputStream.use { it.write(bytes) }
             }
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream

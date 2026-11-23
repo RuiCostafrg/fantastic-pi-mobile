@@ -9,7 +9,15 @@ export function runPi({ bin, args, cwd, text, signal, onEvent, clients, id, time
     child.on('spawn', () => log('rpc.started', { requestId: id, pid: child.pid }));
     let buffer = '', stderr = '', answer = '', settled = false, failure;
     let chain = Promise.resolve();
-    const send = record => { if (!child.stdin.destroyed) child.stdin.write(JSON.stringify(record) + '\n'); };
+    // Resolving means a local pipe-write callback, NOT an acknowledgement from
+    // Pi or proof that an external effect occurred. Never retry a failed write.
+    const send = record => new Promise((resolve, reject) => {
+      if (settled || child.stdin.destroyed || !child.stdin.writable) return reject(new Error('RPC sender is no longer live'));
+      const timer = setTimeout(() => reject(new Error('RPC pipe write uncertain')), 5000);
+      child.stdin.write(JSON.stringify(record) + '\n', error => {
+        clearTimeout(timer); if (error) reject(error); else resolve();
+      });
+    });
     const kill = () => {
       try { process.kill(-child.pid, 'SIGTERM'); } catch {}
       const force = setTimeout(() => { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }, 1500);
@@ -65,6 +73,6 @@ export function runPi({ bin, args, cwd, text, signal, onEvent, clients, id, time
     });
     child.on('close', code => { if (!settled) finish(new Error('Pi exited before settling (' + code + '). ' + stderr)); });
     if (signal.aborted) aborted();
-    else send({ id: 'prompt', type: 'prompt', message: text });
+    else void send({ id: 'prompt', type: 'prompt', message: text }).catch(finish);
   });
 }
